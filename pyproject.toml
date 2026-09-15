@@ -2,7 +2,16 @@
 name = "skport"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["playwright>=1.44"]
+dependencies = [
+  "playwright>=1.44",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "apscheduler>=3.10",
+  "pydantic>=2",
+  "pydantic-settings>=2",
+  "jinja2>=3.1",
+  "httpx>=0.27",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

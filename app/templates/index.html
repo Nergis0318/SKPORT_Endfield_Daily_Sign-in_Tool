@@ -1,0 +1,29 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SKPORT 에이전트</title>
+<style>body{font-family:sans-serif;max-width:900px;margin:20px auto;padding:0 12px}
+pre{background:#f4f4f4;padding:8px;white-space:pre-wrap}
+button{padding:6px 14px;margin:4px 4px 4px 0}</style></head><body>
+<h1>SKPORT 에이전트</h1>
+<p>매일 01:23 (UTC+8)에만 브라우저를 켜서 출석합니다. 평소에는 브라우저가 꺼져 있습니다.</p>
+<p><a href="/vnc.html">VNC로 브라우저 열기</a> (로그인용, Docker에서만 동작)</p>
+<h2>상태</h2>
+<ul><li>결과: <b id="st">-</b></li><li>마지막 실행: <span id="last">-</span></li>
+<li>다음 실행: <span id="next">-</span></li><li>저장 세션: <span id="sess">-</span></li></ul>
+<h2>설정</h2>
+<label><input type="checkbox" id="tg" checked> 텔레그램 알림</label>
+<button onclick="save()">저장</button>
+<button onclick="post('/api/cycle')">지금 출석 1회 실행</button>
+<button onclick="post('/api/login')">로그인용 브라우저 10분 열기</button>
+<h2>로그</h2><pre id="log"></pre>
+<script>
+async function post(u){await fetch(u,{method:'POST'});}
+async function save(){await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telegram:tg.checked})});}
+async function tick(){
+ try{const r=await fetch('/api/status');const s=await r.json();
+ st.textContent=s.last_status;last.textContent=s.last_run;next.textContent=s.next_run;
+ tg.checked=s.settings.telegram;sess.textContent=s.has_session ? '있음' : '없음 (로그인 필요)';
+ log.textContent=s.log.slice().reverse().join('\n');}catch(e){}
+}
+setInterval(tick,5000);tick();
+</script></body></html>

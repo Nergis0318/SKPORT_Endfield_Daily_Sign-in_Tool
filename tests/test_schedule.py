@@ -86,3 +86,58 @@ def test_do_cycle_login_required_queues_login_window(monkeypatch, tmp_path):
     monkeypatch.setattr(runner.executor, "submit", lambda fn, *a: queued.append((fn.__name__, a)))
     runner.do_cycle("테스트")
     assert queued == [("do_login_window", ("세션 만료",))]
+
+
+import asyncio
+import os
+
+from app import runner, scheduler, state
+
+
+def test_daily_cron_registers(monkeypatch):
+    monkeypatch.setenv("SKPORT_CHECK_TIME", "01:23")
+    monkeypatch.setenv("SKPORT_DISABLE_BOOT", "1")
+
+    async def go():
+        scheduler.start()
+        try:
+            job = scheduler.scheduler.get_job("daily")
+            assert job is not None
+            trig = str(job.trigger)
+            assert "hour='1'" in trig and "minute='23'" in trig
+            nxt = job.next_run_time
+            assert (nxt.hour, nxt.minute) == (1, 23)
+            return nxt
+        finally:
+            scheduler.shutdown()
+
+    nxt = asyncio.run(go())
+    _, target = runner.next_check_delay()
+    assert nxt.strftime("%Y-%m-%d %H:%M") == target.strftime("%Y-%m-%d %H:%M")
+
+
+def test_boot_disabled_registers_only_daily(monkeypatch):
+    monkeypatch.setenv("SKPORT_DISABLE_BOOT", "1")
+
+    async def go():
+        scheduler.start()
+        try:
+            return sorted(j.id for j in scheduler.scheduler.get_jobs())
+        finally:
+            scheduler.shutdown()
+
+    assert asyncio.run(go()) == ["daily"]
+
+
+def test_request_cycle_queues_job(monkeypatch):
+    monkeypatch.setenv("SKPORT_DISABLE_BOOT", "1")
+
+    async def go():
+        scheduler.start()
+        try:
+            assert scheduler.request_cycle() is True
+            return scheduler.scheduler.get_job("once-cycle") is not None
+        finally:
+            scheduler.shutdown()
+
+    assert asyncio.run(go()) is True

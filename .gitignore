@@ -1,0 +1,6 @@
+.env
+storage_state.json
+.fva/
+__pycache__/
+*.log
+screenshots/

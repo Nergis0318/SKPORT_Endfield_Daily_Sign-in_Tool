@@ -37,7 +37,7 @@ def _run_once():
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
-        browser = checkin.launch_browser(pw, headed=True)
+        browser = checkin.launch_browser(pw)
         try:
             ctx_kwargs = {"storage_state": checkin.STATE_FILE} if os.path.isfile(checkin.STATE_FILE) else {}
             ctx = browser.new_context(**ctx_kwargs)
@@ -97,7 +97,7 @@ def do_login_window(reason, minutes=state.LOGIN_WINDOW_MINUTES):
         state.add_log(f"{reason}: {minutes}분간 로그인용 브라우저를 엽니다. 화면/VNC(/vnc.html)에서 로그인하세요.")
         notify_sync("🔑 SKPORT 로그인 필요 — {minutes}분간 브라우저를 열어둡니다. 화면/VNC(/vnc.html)로 로그인하세요.".format(minutes=minutes))
         with sync_playwright() as pw:
-            browser = checkin.launch_browser(pw, headed=True)
+            browser = checkin.launch_browser(pw)
             try:
                 ctx_kwargs = {"storage_state": checkin.STATE_FILE} if os.path.isfile(checkin.STATE_FILE) else {}
                 ctx = browser.new_context(**ctx_kwargs)

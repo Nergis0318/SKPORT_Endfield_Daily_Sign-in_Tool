@@ -5,7 +5,7 @@ import threading
 import time
 
 UTC8 = datetime.timezone(datetime.timedelta(hours=8))
-NOVNC_DIR = "/usr/share/novnc"  # 없을 때(로컬 실행)는 VNC 비활성
+NOVNC_DIR = "/usr/share/novnc"  # Docker 이미지에 포함 (noVNC 정적 서빙)
 VNC_HOST, VNC_PORT = "127.0.0.1", 5900
 LOGIN_WINDOW_MINUTES = 10
 

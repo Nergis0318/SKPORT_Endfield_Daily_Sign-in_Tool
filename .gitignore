@@ -4,3 +4,4 @@ storage_state.json
 __pycache__/
 *.log
 screenshots/
+data/

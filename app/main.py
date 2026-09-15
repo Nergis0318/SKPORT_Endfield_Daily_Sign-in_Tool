@@ -1,4 +1,4 @@
-"""SKPORT 상시 에이전트(FastAPI). 실행: uv run uvicorn app.main:app --host 0.0.0.0 --port 8080."""
+"""SKPORT 상시 에이전트(FastAPI). Docker 진입점(agent-entrypoint.sh)에서 uvicorn으로 기동."""
 import os
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -86,9 +86,4 @@ async def websockify(ws: WebSocket):
     await vnc_proxy(ws)
 
 
-if os.path.isdir(state.NOVNC_DIR):
-    app.mount("/", StaticFiles(directory=state.NOVNC_DIR, html=True), name="novnc")
-else:
-    @app.get("/vnc.html")
-    def vnc_missing():
-        return PlainTextResponse("VNC 비활성 (로컬 실행, Docker에서만 동작)", status_code=503)
+app.mount("/", StaticFiles(directory=state.NOVNC_DIR, html=True, check_dir=False), name="novnc")

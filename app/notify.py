@@ -1,4 +1,4 @@
-"""httpx 기반 텔레그램 알림. checkin.send_telegram 계약 유지(무자격 스킵, 무예외)."""
+"""httpx 기반 텔레그램 알림. 무자격 스킵, 무예외."""
 import asyncio
 import os
 

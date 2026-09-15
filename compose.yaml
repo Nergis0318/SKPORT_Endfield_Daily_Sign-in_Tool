@@ -6,7 +6,6 @@ services:
     environment:
       SKPORT_STATE_FILE: /app/data/storage_state.json
       SKPORT_DATA_DIR: /app/data
-      SKPORT_SCREENSHOT_DIR: /app/data/screenshots
     ports:
       - "8081:8080"
     volumes:

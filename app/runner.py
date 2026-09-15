@@ -9,7 +9,7 @@ import checkin
 
 from app import state
 from app.notify import notify_sync
-from app.settings import Settings, save_settings
+from app.settings import save_claimed_day
 
 executor = ThreadPoolExecutor(max_workers=1)
 
@@ -65,7 +65,7 @@ def do_cycle(reason):
         state.state["last_run"] = f"{state.now()} ({reason})"
         if status == "success" or (status == "already" and state.state["settings"].get("claimed_day") != day):
             state.state["settings"]["claimed_day"] = day
-            save_settings(Settings(**state.state["settings"]))
+            save_claimed_day(day)
             msg = f"{checkin.MESSAGES['success']} [{reason}]"
             state.add_log(msg)
             notify_sync(msg)

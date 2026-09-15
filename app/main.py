@@ -10,16 +10,36 @@ from fastapi.templating import Jinja2Templates
 
 import checkin
 from app import runner, scheduler, state
-from app.settings import Settings, load_settings, save_settings
+from app.settings import Settings, effective_settings, load_settings, read_raw_settings, save_settings
 from app.vnc import proxy as vnc_proxy
 
 templates = Jinja2Templates(directory="app/templates")
+
+# 필드별 타입: bool 플래그 vs 문자열 자격증명
+BOOL_FIELDS = ("telegram", "discord")
+STR_FIELDS = (
+    "telegram_bot_token",
+    "telegram_chat_id",
+    "telegram_mention_id",
+    "discord_webhook_url",
+)
+# 시크릿 → 노출 플래그 이름
+CONFIGURED_FLAGS = {"telegram_bot_token": "telegram_configured", "discord_webhook_url": "discord_configured"}
 
 
 def _as_bool(value) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in ("true", "1", "on", "yes")
     return bool(value)
+
+
+def _public_settings(s: dict) -> dict:
+    """API 응답용. 시크릿 원문 대신 설정 여부 플래그만 노출."""
+    out = dict(s)
+    for field, flag in CONFIGURED_FLAGS.items():
+        out[flag] = bool(s.get(field))
+        out[field] = ""
+    return out
 
 
 @asynccontextmanager
@@ -43,25 +63,50 @@ def index(request: Request):
 
 @app.get("/api/status")
 def api_status():
-    return JSONResponse({**state.state, "has_session": os.path.isfile(checkin.STATE_FILE)})
+    return JSONResponse({**state.state, "settings": _public_settings(state.state["settings"]), "has_session": os.path.isfile(checkin.STATE_FILE)})
+
+
+def _parse_form(raw: str) -> dict:
+    """수동 form 파싱 (python-multipart 없이). 체크박스는 존재 시 True."""
+    values = urllib.parse.parse_qs(raw)
+    out: dict = {}
+    for field in BOOL_FIELDS:
+        out[field] = field in values
+    for field in STR_FIELDS:
+        if field in values:
+            out[field] = values[field][0]
+    return out
+
+
+def _merge_settings(body: dict) -> Settings:
+    """저장값(원문) 위에 요청 body를 병합. 생략 필드는 유지, 빈 문자열은 삭제."""
+    try:
+        current = Settings(**read_raw_settings()).model_dump()
+    except Exception:
+        current = Settings().model_dump()
+    for field in BOOL_FIELDS:
+        if field in body:
+            current[field] = _as_bool(body[field])
+    for field in STR_FIELDS:
+        if field in body:
+            current[field] = str(body[field]).strip()
+    return Settings(**current)
 
 
 @app.post("/api/settings")
 async def api_settings(request: Request):
     if request.headers.get("content-type", "").startswith("application/json"):
         body = await request.json()
-        if isinstance(body, dict):
-            telegram = _as_bool(body.get("telegram", False))
-        else:  # JSON 리스트 등 비객체 → 설정 변경 없음
-            telegram = state.state["settings"]["telegram"]
-    else:  # 기존 form 호환 (python-multipart 없이 수동 파싱)
-        raw = (await request.body()).decode()
-        telegram = "telegram" in urllib.parse.parse_qs(raw)
-    updated = Settings(telegram=telegram, claimed_day=state.state["settings"]["claimed_day"])
-    state.state["settings"] = {"telegram": updated.telegram, "claimed_day": updated.claimed_day}
+        body = body if isinstance(body, dict) else {}
+    else:  # 기존 form 호환
+        body = _parse_form((await request.body()).decode())
+    if not body:  # 변경 없음 → 현재값 유지
+        return {"settings": _public_settings(state.state["settings"])}
+    updated = _merge_settings(body)
     save_settings(updated)
-    state.add_log(f"설정 변경: {state.state['settings']}")
-    return {"settings": state.state["settings"]}
+    state.state["settings"] = effective_settings(updated.model_dump())
+    state.add_log(f"설정 변경: {', '.join(sorted(body))}")
+    return {"settings": _public_settings(state.state["settings"])}
 
 
 @app.post("/api/cycle", status_code=202)

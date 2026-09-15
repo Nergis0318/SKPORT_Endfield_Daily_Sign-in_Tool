@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import datetime
+import json
 
 import pytest
 
@@ -58,6 +59,28 @@ def test_do_cycle_success_saves_and_notifies(monkeypatch, tmp_path):
     assert state.state["settings"]["claimed_day"] == 15
     assert state.state["last_status"] == "success"
     assert any("출석 완료" in m for m in sent)
+
+
+def test_do_cycle_does_not_persist_env_secrets(monkeypatch, tmp_path):
+    """claimed_day 저장이 env로만 준 자격증명을 settings.json에 굳히면 안 된다."""
+    _reset()
+    monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "ENVTOK")
+    state.state["settings"] = {
+        "telegram": True,
+        "discord": True,
+        "claimed_day": 0,
+        "telegram_bot_token": "ENVTOK",
+        "telegram_chat_id": "",
+        "telegram_mention_id": "",
+        "discord_webhook_url": "",
+    }
+    monkeypatch.setattr(runner, "_run_once", lambda: ("success", 15))
+    monkeypatch.setattr("app.runner.notify_sync", lambda t: None)
+    runner.do_cycle("test")
+    saved = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    assert saved["claimed_day"] == 15
+    assert saved.get("telegram_bot_token", "") == ""
 
 
 def test_do_cycle_duplicate_already_no_notify(monkeypatch, tmp_path):

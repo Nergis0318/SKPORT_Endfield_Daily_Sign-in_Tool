@@ -2,7 +2,15 @@ from app import state
 
 
 def test_state_shape():
-    assert state.state["settings"] == {"telegram": True, "claimed_day": 0}
+    assert state.state["settings"] == {
+        "telegram": True,
+        "discord": True,
+        "claimed_day": 0,
+        "telegram_bot_token": "",
+        "telegram_chat_id": "",
+        "telegram_mention_id": "",
+        "discord_webhook_url": "",
+    }
     assert state.state["last_status"] == "-"
     assert state.LOGIN_WINDOW_MINUTES == 10
     assert (state.VNC_HOST, state.VNC_PORT) == ("127.0.0.1", 5900)

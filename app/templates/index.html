@@ -3,7 +3,10 @@
 <title>SKPORT 에이전트</title>
 <style>body{font-family:sans-serif;max-width:900px;margin:20px auto;padding:0 12px}
 pre{background:#f4f4f4;padding:8px;white-space:pre-wrap}
-button{padding:6px 14px;margin:4px 4px 4px 0}</style></head><body>
+button{padding:6px 14px;margin:4px 4px 4px 0}
+fieldset{border:1px solid #ccc;border-radius:6px;margin:10px 0;padding:10px 12px}
+label{display:block;margin:6px 0}input[type=text],input[type=password]{width:100%;max-width:420px;padding:4px}
+.hint{color:#666;font-size:12px}</style></head><body>
 <h1>SKPORT 에이전트</h1>
 <p>매일 01:23 (UTC+8)에만 브라우저를 켜서 출석합니다. 평소에는 브라우저가 꺼져 있습니다.</p>
 <p><a href="/vnc.html">VNC로 브라우저 열기</a> (로그인용)</p>
@@ -11,18 +14,61 @@ button{padding:6px 14px;margin:4px 4px 4px 0}</style></head><body>
 <ul><li>결과: <b id="st">-</b></li><li>마지막 실행: <span id="last">-</span></li>
 <li>다음 실행: <span id="next">-</span></li><li>저장 세션: <span id="sess">-</span></li></ul>
 <h2>설정</h2>
+<fieldset><legend>알림</legend>
 <label><input type="checkbox" id="tg" checked> 텔레그램 알림</label>
-<button onclick="save()">저장</button>
+<label>봇 토큰: <input type="password" id="botToken" placeholder="비워두면 저장된 값 유지">
+<span class="hint" id="botTokenState"></span></label>
+<label>채널/채팅 ID: <input type="text" id="chatId" placeholder="예: -1001234567890"></label>
+<label>멘션할 유저 ID: <input type="text" id="mentionId" placeholder="숫자 ID만 입력 (예: 123456789)">
+<span class="hint">숫자 ID면 tg://user 보이지 않는 멘션으로 알림이 갑니다.</span></label>
+<label><input type="checkbox" id="dc" checked> 디스코드 알림</label>
+<label>디스코드 웹훅 URL: <input type="password" id="discordUrl" placeholder="비워두면 저장된 값 유지">
+<span class="hint" id="discordUrlState"></span></label>
+<div><button onclick="save()">저장</button>
+<button onclick="clearField('telegram_bot_token')">토큰 지우기</button>
+<button onclick="clearField('discord_webhook_url')">웹훅 지우기</button></div>
+</fieldset>
 <button onclick="post('/api/cycle')">지금 출석 1회 실행</button>
 <button onclick="post('/api/login')">로그인용 브라우저 10분 열기</button>
 <h2>로그</h2><pre id="log"></pre>
 <script>
+const $=id=>document.getElementById(id);
+const _dirty={botToken:false,chatId:false,mentionId:false,discordUrl:false};
+['botToken','chatId','mentionId','discordUrl'].forEach(id=>{
+  $(id).addEventListener('input',()=>{_dirty[id]=true;});
+});
 async function post(u){await fetch(u,{method:'POST'});}
-async function save(){await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telegram:tg.checked})});}
+function payload(){
+  const body={telegram:$('tg').checked,discord:$('dc').checked};
+  // 문자열 필드는 항상 전송(변경/삭제 반영). 시크릿은 입력했을 때만 전송 → 저장값 유지.
+  body.telegram_chat_id=$('chatId').value;
+  body.telegram_mention_id=$('mentionId').value;
+  if(_dirty.botToken) body.telegram_bot_token=$('botToken').value;
+  if(_dirty.discordUrl) body.discord_webhook_url=$('discordUrl').value;
+  return body;
+}
+function resetDirty(){$('botToken').value='';$('discordUrl').value='';Object.keys(_dirty).forEach(k=>{_dirty[k]=false;});}
+async function save(){
+  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});
+  if(r.ok) resetDirty();
+  tick();
+}
+async function clearField(name){
+  const body=payload();
+  body[name]='';  // 명시적 삭제 → 환경변수 폴백으로 복귀
+  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.ok) resetDirty();
+  tick();
+}
 async function tick(){
  try{const r=await fetch('/api/status');const s=await r.json();
  st.textContent=s.last_status;last.textContent=s.last_run;next.textContent=s.next_run;
- tg.checked=s.settings.telegram;sess.textContent=s.has_session ? '있음' : '없음 (로그인 필요)';
+ tg.checked=s.settings.telegram;dc.checked=s.settings.discord;
+ botTokenState.textContent=s.settings.telegram_configured?'저장됨':'미설정';
+ discordUrlState.textContent=s.settings.discord_configured?'저장됨':'미설정';
+ if(!_dirty.chatId) chatId.value=s.settings.telegram_chat_id||'';
+ if(!_dirty.mentionId) mentionId.value=s.settings.telegram_mention_id||'';
+ sess.textContent=s.has_session ? '있음' : '없음 (로그인 필요)';
  log.textContent=s.log.slice().reverse().join('\n');}catch(e){}
 }
 setInterval(tick,5000);tick();

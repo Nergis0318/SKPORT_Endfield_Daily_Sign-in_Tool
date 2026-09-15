@@ -25,7 +25,9 @@ docker compose up --build       # 실행 (UI :8081, VNC /vnc.html)
 | `SKPORT_STATE_FILE` | `storage_state.json` | Docker: `/app/data/storage_state.json`. gitignore됨, 커밋 금지 |
 | `SKPORT_DATA_DIR` | `data` | `settings.json` 위치. Docker: `/app/data` |
 | `PLAYWRIGHT_CHANNEL` | (없음) | Docker는 `chrome`(실크롬) |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | (없음) | 없으면 알림 조용히 스킵 (`send_telegram` False 반환, 예외 없음) |
+| `TELEGRAM_MENTION_ID` | (없음) | 숫자면 `tg://user?id=` 보이지 않는 멘션으로 전송 (parse_mode=HTML) |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | (없음) | Web UI 설정값이 없을 때 폴백. 둘 다 없으면 알림 조용히 스킵 (False 반환, 예외 없음) |
+| `DISCORD_WEBHOOK_URL` | (없음) | Web UI 설정값이 없을 때 폴백. 없으면 디스코드 알림 조용히 스킵 |
 
 ## 반드시 알아야 할 것
 
@@ -35,3 +37,4 @@ docker compose up --build       # 실행 (UI :8081, VNC /vnc.html)
 - **`classify_status` 순서 고정:** already → success → login. 순서 바꾸면 오분류 (예: "already checked in"이 "checked in"에 먼저 걸림).
 - **`app/runner.py` 알림 조건:** 당일 첫 출석·상태 변화·오류만 전송. 중복 `already`는 `claimed_day == day`면 알림 없음.
 - **로그인:** 세션 만료 시 runner가 10분 로그인 창을 자동으로 열고, UI 버튼/`POST /api/login`으로도 열 수 있음. VNC(`/vnc.html`)로 접속해 로그인.
+- **알림 설정:** 봇 토큰·채널 ID·멘션 유저 ID·디스코드 웹훅는 Web UI(`/`)에서 설정하며 `settings.json`에 저장됨(파일 값 우선, 없으면 env 폴백). 시크릿(토큰·웹훅)은 `/api/status` 응답에서 빈 값으로 마스킹되고 `telegram_configured`/`discord_configured` 플래그로만 노출. `POST /api/settings`에서 생략한 필드는 유지, 빈 문자열은 삭제 후 env 폴백.

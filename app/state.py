@@ -10,7 +10,15 @@ VNC_HOST, VNC_PORT = "127.0.0.1", 5900
 LOGIN_WINDOW_MINUTES = 10
 
 state = {
-    "settings": {"telegram": True, "claimed_day": 0},
+    "settings": {
+        "telegram": True,
+        "discord": True,
+        "claimed_day": 0,
+        "telegram_bot_token": "",
+        "telegram_chat_id": "",
+        "telegram_mention_id": "",
+        "discord_webhook_url": "",
+    },
     "last_status": "-",
     "last_run": "-",
     "next_run": "-",

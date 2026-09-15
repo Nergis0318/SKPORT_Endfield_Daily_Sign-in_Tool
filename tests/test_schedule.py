@@ -1,21 +1,11 @@
 import asyncio
 import concurrent.futures
-import copy
 import datetime
 
 import pytest
 
 import checkin
 from app import runner, scheduler, state
-
-
-@pytest.fixture(autouse=True)
-def _isolate_state():
-    saved = copy.deepcopy(state.state)
-    yield
-    state.state.clear()
-    state.state.update(saved)
-    state.login_open.clear()
 
 
 class _Recorder:

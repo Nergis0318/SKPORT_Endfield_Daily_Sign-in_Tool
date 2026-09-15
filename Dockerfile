@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget gnupg xvfb
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
-COPY checkin.py login.py manager.py agent-entrypoint.sh ./
+COPY checkin.py login.py agent-entrypoint.sh ./
+COPY app/ ./app/
 EXPOSE 8080
-CMD ["uv", "run", "checkin.py"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

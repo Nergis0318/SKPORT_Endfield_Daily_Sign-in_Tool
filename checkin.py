@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import time
+import datetime
 import urllib.parse
 import urllib.request
 
@@ -65,29 +66,88 @@ def classify_status(page_text):
     return "unknown"
 
 
+SHOT_DIR = os.environ.get("SKPORT_SCREENSHOT_DIR", "screenshots")
+
+
 def dump_debug(page, prefix):
-    os.makedirs("screenshots", exist_ok=True)
-    page.screenshot(path=f"screenshots/{prefix}.png")
-    with open(f"screenshots/{prefix}.html", "w", encoding="utf-8") as f:
+    os.makedirs(SHOT_DIR, exist_ok=True)
+    page.screenshot(path=f"{SHOT_DIR}/{prefix}.png")
+    with open(f"{SHOT_DIR}/{prefix}.html", "w", encoding="utf-8") as f:
         f.write(page.content())
 
 
-def _attempt(pw, headed):
-    browser = pw.chromium.launch(headless=not headed)
+UTC8 = datetime.timezone(datetime.timedelta(hours=8))
+CONTENT_JS = "() => document.body && document.body.innerText.includes('Day ')"
+
+# 오늘 카드(Day N, UTC+8 기준)에 svg 체크 표시가 있으면 출석 완료
+CARD_JS = """(day) => {
+  const el = [...document.querySelectorAll('*')].find(e => (e.innerText || '').trim() === 'Day ' + day);
+  if (!el) return 'missing';
+  return el.parentElement.querySelectorAll('svg').length > 0 ? 'claimed' : 'open';
+}"""
+
+CLICK_JS = """(day) => {
+  const el = [...document.querySelectorAll('*')].find(e => (e.innerText || '').trim() === 'Day ' + day);
+  if (el) el.parentElement.click();
+}"""
+
+
+def today_day():
+    return datetime.datetime.now(UTC8).day
+
+
+def safe_text(page):
     try:
-        ctx_kwargs = {"storage_state": STATE_FILE} if os.path.exists(STATE_FILE) else {}
+        return page.inner_text("body")
+    except Exception:
+        return ""
+
+
+def attempt_endfield(page):
+    """카드 기반 출석 확인 + 미출석이면 카드 클릭. 반환: (status, utc8_day)."""
+    day = today_day()
+    try:
+        page.wait_for_function(CONTENT_JS, timeout=20000)
+    except Exception:
+        return classify_status(safe_text(page)), day
+    if page.evaluate(CARD_JS, day) == "claimed":
+        return "already", day
+    page.evaluate(CLICK_JS, day)
+    page.wait_for_timeout(4000)
+    if page.evaluate(CARD_JS, day) == "claimed":
+        return "success", day
+    page.reload(timeout=TIMEOUT_MS)  # 방문만으로 자동 수령되는 경우 대비 재확인
+    try:
+        page.wait_for_function(CONTENT_JS, timeout=20000)
+    except Exception:
+        return "unknown", day
+    if page.evaluate(CARD_JS, day) == "claimed":
+        return "success", day
+    return classify_status(safe_text(page)), day
+
+
+def launch_browser(pw, headed):
+    """Full Chrome 우선. PLAYWRIGHT_CHANNEL=chrome (Docker 기본), 빈값이면 번들 Chromium."""
+    channel = env("PLAYWRIGHT_CHANNEL", "") or None
+    return pw.chromium.launch(
+        headless=not headed,
+        channel=channel,
+        args=["--no-sandbox", "--disable-dev-shm-usage"],
+    )
+
+
+def _attempt(pw, headed):
+    browser = launch_browser(pw, headed)
+    try:
+        ctx_kwargs = {"storage_state": STATE_FILE} if os.path.isfile(STATE_FILE) else {}
         ctx = browser.new_context(**ctx_kwargs)
         page = ctx.new_page()
         page.goto(SIGNIN_URL, timeout=TIMEOUT_MS)
-        page.wait_for_timeout(3000)
-        if page.get_by_role("button", name=BUTTON_PATTERN).count() == 0:
-            status = classify_status(page.inner_text("body"))
-            if status == "unknown":
-                dump_debug(page, "checkin_unknown")
-            return status
-        page.get_by_role("button", name=BUTTON_PATTERN).first.click(timeout=TIMEOUT_MS)
-        page.wait_for_timeout(3000)
-        status = classify_status(page.inner_text("body"))
+        status, _day = attempt_endfield(page)
+        try:
+            ctx.storage_state(path=STATE_FILE)
+        except Exception as e:
+            print(f"[warn] state save failed: {e}", flush=True)
         if status in ("unknown", "login_required"):
             dump_debug(page, "checkin_result")
         return status

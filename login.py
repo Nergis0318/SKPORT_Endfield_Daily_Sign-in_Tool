@@ -4,7 +4,7 @@ import checkin
 from playwright.sync_api import sync_playwright
 
 with sync_playwright() as pw:
-    browser = pw.chromium.launch(headless=False)
+    browser = checkin.launch_browser(pw, headed=True)
     ctx = browser.new_context()
     page = ctx.new_page()
     page.goto(checkin.SIGNIN_URL, timeout=checkin.TIMEOUT_MS)

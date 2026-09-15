@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.git/
+.fva/
+.superpowers/
+screenshots/
+data/
+storage_state.json
+tests/
+docs/
+.env
+*.log

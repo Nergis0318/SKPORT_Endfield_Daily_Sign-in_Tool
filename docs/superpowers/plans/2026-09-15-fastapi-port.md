@@ -451,7 +451,7 @@ def test_next_check_before_target(monkeypatch):
     monkeypatch.setenv("SKPORT_CHECK_TIME", "01:23")
     now = datetime.datetime(2026, 9, 15, 0, 0, tzinfo=state.UTC8)
     delay, target = runner.next_check_delay(now)
-    assert delay == 23 * 60
+    assert delay == 83 * 60  # 00:00 → 01:23 = 83분
     assert (target.hour, target.minute, target.day) == (1, 23, 15)
 
 
@@ -484,6 +484,7 @@ def test_do_cycle_duplicate_already_no_notify(monkeypatch, tmp_path):
     _reset()
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
     state.state["settings"] = {"telegram": True, "claimed_day": 15}
+    state.state["last_status"] = "already"  # 진짜 중복: 이전 상태도 already여야 조용함 (manager.py elif status != prev 규칙 유지)
     monkeypatch.setattr(runner, "_run_once", lambda: ("already", 15))
     sent = []
     monkeypatch.setattr("app.runner.notify_sync", lambda t: sent.append(t))

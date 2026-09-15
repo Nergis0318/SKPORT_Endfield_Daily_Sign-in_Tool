@@ -1,0 +1,8 @@
+[project]
+name = "skport"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["playwright>=1.44"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]

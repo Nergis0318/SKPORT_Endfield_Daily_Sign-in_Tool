@@ -48,6 +48,20 @@ def test_settings_form_compat(tmp_path, monkeypatch):
         assert r.json()["settings"]["telegram"] is True
 
 
+def test_settings_json_string_bool(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        r = c.post("/api/settings", json={"telegram": "false"})
+        assert r.status_code == 200
+        assert r.json()["settings"]["telegram"] is False
+
+
+def test_settings_json_non_object_body_keeps_telegram(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        r = c.post("/api/settings", json=["telegram"])
+        assert r.status_code == 200
+        assert r.json()["settings"]["telegram"] is True
+
+
 def test_cycle_and_login_queue(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(scheduler, "request_cycle", lambda: calls.append("cycle") or True)

@@ -1,10 +1,12 @@
+import asyncio
+import concurrent.futures
 import copy
 import datetime
 
 import pytest
 
 import checkin
-from app import runner, state
+from app import runner, scheduler, state
 
 
 @pytest.fixture(autouse=True)
@@ -14,6 +16,19 @@ def _isolate_state():
     state.state.clear()
     state.state.update(saved)
     state.login_open.clear()
+
+
+class _Recorder:
+    """runner.executor 대역. submit 호출을 기록하고 완료된 Future를 반환."""
+
+    def __init__(self, calls):
+        self.calls = calls
+
+    def submit(self, fn, *args):
+        self.calls.append((fn.__name__, args))
+        fut = concurrent.futures.Future()
+        fut.set_result(None)
+        return fut
 
 
 def _reset():
@@ -88,12 +103,6 @@ def test_do_cycle_login_required_queues_login_window(monkeypatch, tmp_path):
     assert queued == [("do_login_window", ("세션 만료",))]
 
 
-import asyncio
-import os
-
-from app import runner, scheduler, state
-
-
 def test_daily_cron_registers(monkeypatch):
     monkeypatch.setenv("SKPORT_CHECK_TIME", "01:23")
     monkeypatch.setenv("SKPORT_DISABLE_BOOT", "1")
@@ -105,6 +114,7 @@ def test_daily_cron_registers(monkeypatch):
             assert job is not None
             trig = str(job.trigger)
             assert "hour='1'" in trig and "minute='23'" in trig
+            assert job.args == ("01:23 정기 실행",)
             nxt = job.next_run_time
             assert (nxt.hour, nxt.minute) == (1, 23)
             return nxt
@@ -141,3 +151,78 @@ def test_request_cycle_queues_job(monkeypatch):
             scheduler.shutdown()
 
     assert asyncio.run(go()) is True
+
+
+def test_boot_login_run_date_is_tz_aware_now(monkeypatch, tmp_path):
+    """B1 회귀: naive datetime.now()면 UTC8 기준 8h(또는 호스트 로컬 오프셋)만큼 벌어진다."""
+    monkeypatch.delenv("SKPORT_DISABLE_BOOT", raising=False)
+    monkeypatch.setattr(checkin, "STATE_FILE", str(tmp_path / "absent.json"))
+    monkeypatch.setattr(runner, "executor", _Recorder([]))
+
+    async def go():
+        scheduler.start()
+        try:
+            job = scheduler.scheduler.get_job("boot-login")
+            assert job is not None
+            nxt = job.next_run_time
+            assert nxt.utcoffset() == datetime.timedelta(hours=8)  # naive면 8h 오프셋이 아니거나 8h 벌어짐
+            delta = abs((nxt - datetime.datetime.now(state.UTC8)).total_seconds())
+            assert delta < 10
+        finally:
+            scheduler.shutdown()
+
+    asyncio.run(go())
+
+
+def test_boot_cycle_when_unclaimed(monkeypatch, tmp_path):
+    monkeypatch.delenv("SKPORT_DISABLE_BOOT", raising=False)
+    session = tmp_path / "session.json"
+    session.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(checkin, "STATE_FILE", str(session))
+    monkeypatch.setattr(runner, "executor", _Recorder([]))
+    state.state["settings"] = {"telegram": True, "claimed_day": 0}
+
+    async def go():
+        scheduler.start()
+        try:
+            return sorted(j.id for j in scheduler.scheduler.get_jobs())
+        finally:
+            scheduler.shutdown()
+
+    ids = asyncio.run(go())
+    assert "boot-cycle" in ids
+    assert "boot-login" not in ids
+
+
+def test_no_boot_jobs_when_claimed_today(monkeypatch, tmp_path):
+    monkeypatch.delenv("SKPORT_DISABLE_BOOT", raising=False)
+    session = tmp_path / "session.json"
+    session.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(checkin, "STATE_FILE", str(session))
+    monkeypatch.setattr(runner, "executor", _Recorder([]))
+    state.state["settings"] = {"telegram": True, "claimed_day": datetime.datetime.now(state.UTC8).day}
+
+    async def go():
+        scheduler.start()
+        try:
+            return sorted(j.id for j in scheduler.scheduler.get_jobs())
+        finally:
+            scheduler.shutdown()
+
+    ids = asyncio.run(go())
+    assert "boot-cycle" not in ids
+    assert "boot-login" not in ids
+
+
+def test_cycle_job_routes_through_executor(monkeypatch):
+    calls = []
+    monkeypatch.setattr(runner, "executor", _Recorder(calls))
+    asyncio.run(scheduler._cycle_job("수동 실행"))
+    assert calls == [("do_cycle", ("수동 실행",))]
+
+
+def test_login_job_routes_through_executor(monkeypatch):
+    calls = []
+    monkeypatch.setattr(runner, "executor", _Recorder(calls))
+    asyncio.run(scheduler._login_job("세션 만료", 10))
+    assert calls == [("do_login_window", ("세션 만료", 10))]

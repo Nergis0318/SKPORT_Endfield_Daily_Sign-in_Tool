@@ -16,6 +16,12 @@ from app.vnc import proxy as vnc_proxy
 templates = Jinja2Templates(directory="app/templates")
 
 
+def _as_bool(value) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "on", "yes")
+    return bool(value)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(state.get_data_dir(), exist_ok=True)
@@ -44,7 +50,10 @@ def api_status():
 async def api_settings(request: Request):
     if request.headers.get("content-type", "").startswith("application/json"):
         body = await request.json()
-        telegram = bool(body.get("telegram", False))
+        if isinstance(body, dict):
+            telegram = _as_bool(body.get("telegram", False))
+        else:  # JSON 리스트 등 비객체 → 설정 변경 없음
+            telegram = state.state["settings"]["telegram"]
     else:  # 기존 form 호환 (python-multipart 없이 수동 파싱)
         raw = (await request.body()).decode()
         telegram = "telegram" in urllib.parse.parse_qs(raw)

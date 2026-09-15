@@ -63,3 +63,62 @@ def classify_status(page_text):
     if any(k in t for k in ("로그인", "login", "sign in")):
         return "login_required"
     return "unknown"
+
+
+def dump_debug(page, prefix):
+    os.makedirs("screenshots", exist_ok=True)
+    page.screenshot(path=f"screenshots/{prefix}.png")
+    with open(f"screenshots/{prefix}.html", "w", encoding="utf-8") as f:
+        f.write(page.content())
+
+
+def _attempt(pw, headed):
+    browser = pw.chromium.launch(headless=not headed)
+    try:
+        ctx_kwargs = {"storage_state": STATE_FILE} if os.path.exists(STATE_FILE) else {}
+        ctx = browser.new_context(**ctx_kwargs)
+        page = ctx.new_page()
+        page.goto(SIGNIN_URL, timeout=TIMEOUT_MS)
+        page.wait_for_timeout(3000)
+        if page.get_by_role("button", name=BUTTON_PATTERN).count() == 0:
+            status = classify_status(page.inner_text("body"))
+            if status == "unknown":
+                dump_debug(page, "checkin_unknown")
+            return status
+        page.get_by_role("button", name=BUTTON_PATTERN).first.click(timeout=TIMEOUT_MS)
+        page.wait_for_timeout(3000)
+        status = classify_status(page.inner_text("body"))
+        if status in ("unknown", "login_required"):
+            dump_debug(page, "checkin_result")
+        return status
+    finally:
+        browser.close()
+
+
+def run_checkin(headed=False):
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        try:
+            return _attempt(pw, headed)
+        except Exception as e:
+            print(f"[warn] first try failed ({e}), retrying once...", flush=True)
+            time.sleep(10)
+            try:
+                return _attempt(pw, headed)
+            except Exception as e2:
+                print(f"[error] retry failed: {e2}", flush=True)
+                return "error"
+
+
+def main(argv):
+    headed = "--headed" in argv
+    status = run_checkin(headed=headed)
+    msg = MESSAGES[status]
+    print(msg, flush=True)
+    notify(msg)
+    return 0 if status in ("success", "already") else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

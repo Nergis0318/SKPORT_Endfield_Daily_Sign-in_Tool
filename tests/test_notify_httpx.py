@@ -1,4 +1,5 @@
 import asyncio
+
 import httpx
 
 from app import notify, state
@@ -16,7 +17,9 @@ def test_send_telegram_posts():
         seen["body"] = request.read().decode()
         return httpx.Response(200)
 
-    ok = asyncio.run(notify.send_telegram("TOKEN", "123", "hi", client=_client(handler)))
+    ok = asyncio.run(
+        notify.send_telegram("TOKEN", "123", "hi", client=_client(handler))
+    )
     assert ok is True
     assert seen["url"] == "https://api.telegram.org/botTOKEN/sendMessage"
     assert "chat_id=123" in seen["body"] and "text=hi" in seen["body"]
@@ -26,14 +29,20 @@ def test_send_telegram_false_on_http_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
 
-    assert asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler))) is False
+    assert (
+        asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler)))
+        is False
+    )
 
 
 def test_send_telegram_false_on_network_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("down")
 
-    assert asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler))) is False
+    assert (
+        asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler)))
+        is False
+    )
 
 
 def test_send_telegram_missing_creds():
@@ -47,7 +56,11 @@ def test_send_telegram_mention_prepended_html():
         seen["body"] = request.read().decode()
         return httpx.Response(200)
 
-    ok = asyncio.run(notify.send_telegram("T", "1", "hello", mention_id="12345", client=_client(handler)))
+    ok = asyncio.run(
+        notify.send_telegram(
+            "T", "1", "hello", mention_id="12345", client=_client(handler)
+        )
+    )
     assert ok is True
     body = seen["body"]
     assert "parse_mode=HTML" in body
@@ -62,7 +75,9 @@ def test_send_telegram_no_mention_has_no_html():
         seen["body"] = request.read().decode()
         return httpx.Response(200)
 
-    asyncio.run(notify.send_telegram("T", "1", "hello", mention_id="", client=_client(handler)))
+    asyncio.run(
+        notify.send_telegram("T", "1", "hello", mention_id="", client=_client(handler))
+    )
     assert "tg%3A%2F%2Fuser" not in seen["body"]
     assert "hello" in seen["body"]
 
@@ -74,7 +89,11 @@ def test_send_telegram_escapes_text():
         seen["body"] = request.read().decode()
         return httpx.Response(200)
 
-    asyncio.run(notify.send_telegram("T", "1", "<b>&x</b>", mention_id="1", client=_client(handler)))
+    asyncio.run(
+        notify.send_telegram(
+            "T", "1", "<b>&x</b>", mention_id="1", client=_client(handler)
+        )
+    )
     body = seen["body"]
     # parse_mode=HTML이라 본문은 이스케이프되어 전송된다: <b>&x</b> → &lt;b&gt;&amp;x&lt;/b&gt;
     assert "%26lt%3Bb%26gt%3B" in body
@@ -111,7 +130,11 @@ def test_send_discord_posts():
         seen["body"] = request.read().decode()
         return httpx.Response(204)
 
-    ok = asyncio.run(notify.send_discord("https://discord.com/api/webhooks/1/abc", "hi", client=_client(handler)))
+    ok = asyncio.run(
+        notify.send_discord(
+            "https://discord.com/api/webhooks/1/abc", "hi", client=_client(handler)
+        )
+    )
     assert ok is True
     assert seen["url"] == "https://discord.com/api/webhooks/1/abc"
     assert "content" in seen["body"] and "hi" in seen["body"]
@@ -121,14 +144,20 @@ def test_send_discord_false_on_http_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
 
-    assert asyncio.run(notify.send_discord("https://d", "x", client=_client(handler))) is False
+    assert (
+        asyncio.run(notify.send_discord("https://d", "x", client=_client(handler)))
+        is False
+    )
 
 
 def test_send_discord_false_on_network_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("down")
 
-    assert asyncio.run(notify.send_discord("https://d", "x", client=_client(handler))) is False
+    assert (
+        asyncio.run(notify.send_discord("https://d", "x", client=_client(handler)))
+        is False
+    )
 
 
 def test_send_discord_missing_webhook():
@@ -193,4 +222,3 @@ def test_injected_client_not_closed():
     assert asyncio.run(notify.send_telegram("T", "1", "x", client=c)) is True
     assert closed == []
     asyncio.run(c.aclose())  # 정리
-

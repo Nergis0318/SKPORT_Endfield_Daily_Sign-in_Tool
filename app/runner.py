@@ -1,12 +1,13 @@
 """출석 실행기. manager.py:45-61,92-173 이식. sync Playwright는 이 모듈에서만,
 반드시 executor(단일 워커) 경유로 호출된다."""
+
 import datetime
 import os
 from concurrent.futures import ThreadPoolExecutor
 
 import checkin
-
 from app import state
+from app.i18n import notify_text, t
 from app.notify import notify_sync
 from app.settings import save_claimed_day
 
@@ -38,7 +39,11 @@ def _run_once():
     with sync_playwright() as pw:
         browser = checkin.launch_browser(pw)
         try:
-            ctx_kwargs = {"storage_state": checkin.STATE_FILE} if os.path.isfile(checkin.STATE_FILE) else {}
+            ctx_kwargs = (
+                {"storage_state": checkin.STATE_FILE}
+                if os.path.isfile(checkin.STATE_FILE)
+                else {}
+            )
             ctx = browser.new_context(**ctx_kwargs)
             page = ctx.new_page()
             page.goto(checkin.SIGNIN_URL, timeout=checkin.TIMEOUT_MS)
@@ -55,33 +60,35 @@ def _run_once():
 def do_cycle(reason):
     """브라우저를 켜서 출석 1회 수행 후 종료. 당일 첫 출석·상태 변화·오류만 알림."""
     if state.login_open.is_set():
-        state.add_log("로그인 창이 열려 있어 이번 출석을 건너뜁니다.")
+        state.add_log(t("log.skip_login_open"))
         return
     try:
         status, day = _run_once()
         prev = state.state["last_status"]
         state.state["last_status"] = status
-        state.state["last_run"] = f"{state.now()} ({reason})"
-        if status == "success" or (status == "already" and state.state["settings"].get("claimed_day") != day):
+        state.state["last_run"] = f"{state.now()} ({t(reason)})"
+        if status == "success" or (
+            status == "already" and state.state["settings"].get("claimed_day") != day
+        ):
             state.state["settings"]["claimed_day"] = day
             save_claimed_day(day)
-            msg = f"{checkin.MESSAGES['success']} [{reason}]"
+            msg = f"{t('notify.success')} [{t(reason)}]"
             state.add_log(msg)
             notify_sync(msg)
         elif status != prev:
-            msg = f"{checkin.MESSAGES.get(status, status)} [{reason}]"
+            msg = f"{notify_text(status)} [{t(reason)}]"
             state.add_log(msg)
             notify_sync(msg)
         if status == "login_required":
-            state.add_log("관리 UI의 '로그인용 브라우저 열기' 버튼 또는 VNC로 로그인하세요.")
+            state.add_log(t("log.login_hint"))
             executor.submit(do_login_window, "세션 만료")
     except Exception as e:
-        state.add_log(f"실행 오류: {type(e).__name__}: {e}")
+        state.add_log(t("log.run_failed", error=f"{type(e).__name__}: {e}"))
         prev = state.state["last_status"]
         state.state["last_status"] = "error"
-        state.state["last_run"] = f"{state.now()} ({reason})"
+        state.state["last_run"] = f"{state.now()} ({t(reason)})"
         if prev != "error":
-            notify_sync(f"{checkin.MESSAGES['error']} [{reason}]")
+            notify_sync(f"{notify_text('error')} [{t(reason)}]")
 
 
 def request_close() -> bool:
@@ -97,34 +104,38 @@ def do_login_window(reason, minutes=state.LOGIN_WINDOW_MINUTES):
     """로그인용 브라우저를 minutes분간 열어둔다. 저장 세션이 없을 때 강제 실행용.
     request_close()가 오면 남은 시간을 기다리지 않고 즉시 닫는다."""
     if state.login_open.is_set():
-        state.add_log("로그인 창이 이미 열려 있습니다.")
+        state.add_log(t("log.login_window_open_already"))
         return
     state.close_requested.clear()  # 이전 요청이 남아 있으면 즉시 닫히므로 먼저 비운다
     state.login_open.set()  # 순서 고정: set 뒤에 들어온 요청만 유효 (clear가 요청을 삼키지 않도록)
     try:
         from playwright.sync_api import sync_playwright
 
-        state.add_log(f"{reason}: {minutes}분간 로그인용 브라우저를 엽니다. 화면/VNC(/vnc.html)에서 로그인하세요.")
-        notify_sync("🔑 SKPORT 로그인 필요 — {minutes}분간 브라우저를 열어둡니다. 화면/VNC(/vnc.html)로 로그인하세요.".format(minutes=minutes))
+        state.add_log(t("log.login_window_opening", reason=t(reason), minutes=minutes))
+        notify_sync(t("notify.login_window", minutes=minutes))
         with sync_playwright() as pw:
             browser = checkin.launch_browser(pw)
             try:
-                ctx_kwargs = {"storage_state": checkin.STATE_FILE} if os.path.isfile(checkin.STATE_FILE) else {}
+                ctx_kwargs = (
+                    {"storage_state": checkin.STATE_FILE}
+                    if os.path.isfile(checkin.STATE_FILE)
+                    else {}
+                )
                 ctx = browser.new_context(**ctx_kwargs)
                 page = ctx.new_page()
                 page.goto(checkin.SIGNIN_URL, timeout=checkin.TIMEOUT_MS)
-                state.state["last_run"] = f"{state.now()} ({reason})"
+                state.state["last_run"] = f"{state.now()} ({t(reason)})"
                 if state.close_requested.wait(minutes * 60):
-                    state.add_log("즉시 종료 요청을 받아 로그인 창을 닫습니다.")
+                    state.add_log(t("log.login_window_closing"))
                 try:
                     ctx.storage_state(path=checkin.STATE_FILE)
                 except Exception as e:
                     print(f"[warn] state save failed: {e}", flush=True)
             finally:
                 browser.close()
-        state.add_log("로그인 창을 닫았습니다.")
+        state.add_log(t("log.login_window_closed"))
     except Exception as e:
-        state.add_log(f"로그인 창 오류: {type(e).__name__}: {e}")
+        state.add_log(t("log.login_window_error", error=f"{type(e).__name__}: {e}"))
     finally:
         state.close_requested.clear()
         state.login_open.clear()

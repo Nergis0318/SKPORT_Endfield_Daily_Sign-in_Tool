@@ -34,16 +34,16 @@
 
 ## API 매핑 (기존 → 신규)
 
-| 기존 (`Handler`) | 신규 |
-|---|---|
-| `GET /` (PAGE 인라인) | `GET /` (Jinja `index.html`) |
-| `GET /api/status` | `GET /api/status` (동일 JSON + `has_session`) |
-| `POST /api/settings` (form, 303 리다이렉트) | `POST /api/settings` (JSON body 우선, 기존 form도 허용, JSON 응답) |
-| `POST /api/cycle` | `POST /api/cycle` (스케줄러에 1회성 잡 등록, 즉시 202 반환) |
-| `POST /api/login` | `POST /api/login` (10분 로그인잡 등록) |
-| `GET /preview.png` (503 고정) | `GET /preview.png` (동일 503 유지) |
-| `GET /websockify` (수제 핸드셰이크) | `WS /websockify` (Starlette WebSocket, binary proxy) |
-| noVNC 정적 서빙 (`/vnc.html` 등) | `StaticFiles(directory=/usr/share/novnc)`, 없으면(로컬) VNC 비활성 + 안내 |
+| 기존 (`Handler`)                            | 신규                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| `GET /` (PAGE 인라인)                       | `GET /` (Jinja `index.html`)                                              |
+| `GET /api/status`                           | `GET /api/status` (동일 JSON + `has_session`)                             |
+| `POST /api/settings` (form, 303 리다이렉트) | `POST /api/settings` (JSON body 우선, 기존 form도 허용, JSON 응답)        |
+| `POST /api/cycle`                           | `POST /api/cycle` (스케줄러에 1회성 잡 등록, 즉시 202 반환)               |
+| `POST /api/login`                           | `POST /api/login` (10분 로그인잡 등록)                                    |
+| `GET /preview.png` (503 고정)               | `GET /preview.png` (동일 503 유지)                                        |
+| `GET /websockify` (수제 핸드셰이크)         | `WS /websockify` (Starlette WebSocket, binary proxy)                      |
+| noVNC 정적 서빙 (`/vnc.html` 등)            | `StaticFiles(directory=/usr/share/novnc)`, 없으면(로컬) VNC 비활성 + 안내 |
 
 ## 데이터 플로우
 

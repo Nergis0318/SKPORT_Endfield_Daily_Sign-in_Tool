@@ -1,4 +1,5 @@
 """SKPORT 상시 에이전트(FastAPI). Docker 진입점(agent-entrypoint.sh)에서 uvicorn으로 기동."""
+
 import os
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -9,22 +10,32 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import checkin
-from app import runner, scheduler, state
-from app.settings import Settings, effective_settings, load_settings, read_raw_settings, save_settings
+from app import i18n, runner, scheduler, state
+from app.settings import (
+    Settings,
+    effective_settings,
+    load_settings,
+    read_raw_settings,
+    save_settings,
+)
 from app.vnc import proxy as vnc_proxy
 
 templates = Jinja2Templates(directory="app/templates")
 
-# 필드별 타입: bool 플래그 vs 문자열 자격증명
+# 필드별 타입: bool 플래그 vs 문자열(자격증명·표시 언어)
 BOOL_FIELDS = ("telegram", "discord")
 STR_FIELDS = (
+    "language",
     "telegram_bot_token",
     "telegram_chat_id",
     "telegram_mention_id",
     "discord_webhook_url",
 )
 # 시크릿 → 노출 플래그 이름
-CONFIGURED_FLAGS = {"telegram_bot_token": "telegram_configured", "discord_webhook_url": "discord_configured"}
+CONFIGURED_FLAGS = {
+    "telegram_bot_token": "telegram_configured",
+    "discord_webhook_url": "discord_configured",
+}
 
 
 def _as_bool(value) -> bool:
@@ -47,7 +58,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(state.get_data_dir(), exist_ok=True)
     load_settings()
     scheduler.start()
-    state.add_log("에이전트 시작 (FastAPI)")
+    state.add_log(i18n.t("log.agent_started"))
     yield
     scheduler.shutdown()
     runner.executor.shutdown(wait=False)
@@ -58,14 +69,31 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    lang = i18n.current_lang()
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "t": i18n.t,  # 현재 언어로 렌더 (호출 시점 조회)
+            "lang": lang,
+            "html_lang": i18n.HTML_LANG[lang],
+            "langs": i18n.LANGS,
+            "lang_labels": i18n.LANG_LABELS,
+            "status_text": i18n.status_texts(lang),  # 5초 폴링 JS가 쓰는 상태 라벨
+        },
+    )
 
 
 @app.get("/api/status")
 def api_status():
-    return JSONResponse({**state.state, "settings": _public_settings(state.state["settings"]),
-                         "has_session": os.path.isfile(checkin.STATE_FILE),
-                         "login_open": state.login_open.is_set()})
+    return JSONResponse(
+        {
+            **state.state,
+            "settings": _public_settings(state.state["settings"]),
+            "has_session": os.path.isfile(checkin.STATE_FILE),
+            "login_open": state.login_open.is_set(),
+        }
+    )
 
 
 def _parse_form(raw: str) -> dict:
@@ -107,7 +135,7 @@ async def api_settings(request: Request):
     updated = _merge_settings(body)
     save_settings(updated)
     state.state["settings"] = effective_settings(updated.model_dump())
-    state.add_log(f"설정 변경: {', '.join(sorted(body))}")
+    state.add_log(i18n.t("log.settings_changed", fields=", ".join(sorted(body))))
     return {"settings": _public_settings(state.state["settings"])}
 
 
@@ -131,7 +159,7 @@ def api_close():
 
 @app.get("/preview.png")
 def preview():
-    return PlainTextResponse("브라우저 꺼짐 (매일 01:23 UTC+8에만 켜짐)", status_code=503)
+    return PlainTextResponse(i18n.t("log.preview_off"), status_code=503)
 
 
 @app.websocket("/websockify")
@@ -139,4 +167,8 @@ async def websockify(ws: WebSocket):
     await vnc_proxy(ws)
 
 
-app.mount("/", StaticFiles(directory=state.NOVNC_DIR, html=True, check_dir=False), name="novnc")
+app.mount(
+    "/",
+    StaticFiles(directory=state.NOVNC_DIR, html=True, check_dir=False),
+    name="novnc",
+)

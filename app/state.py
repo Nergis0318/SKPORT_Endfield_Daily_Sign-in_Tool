@@ -1,4 +1,5 @@
 """FastAPI 앱 공유 상태. manager.py:22-71에서 HTTP/WS 제외하고 이식."""
+
 import datetime
 import os
 import threading
@@ -14,6 +15,7 @@ state = {
         "telegram": True,
         "discord": True,
         "claimed_day": 0,
+        "language": "ko",
         "telegram_bot_token": "",
         "telegram_chat_id": "",
         "telegram_mention_id": "",

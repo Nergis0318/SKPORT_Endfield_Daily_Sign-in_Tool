@@ -6,6 +6,7 @@ def test_state_shape():
         "telegram": True,
         "discord": True,
         "claimed_day": 0,
+        "language": "ko",
         "telegram_bot_token": "",
         "telegram_chat_id": "",
         "telegram_mention_id": "",

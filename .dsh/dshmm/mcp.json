@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "FVA": {
+      "type": "stdio",
+      "command": "fva",
+      "args": [],
+      "env": {}
+    }
+  }
+}

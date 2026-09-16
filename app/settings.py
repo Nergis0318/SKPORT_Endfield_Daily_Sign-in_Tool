@@ -1,10 +1,11 @@
 """설정 모델 + settings.json persistence. manager.py:74-84의 검증 강화판."""
+
 import json
 import os
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
-from app import state
+from app import i18n, state
 
 # 알림 자격 필드 → 환경변수. settings.json 값이 없으면 env로 폴백(Docker 하위호환).
 ENV_FALLBACK = {
@@ -20,10 +21,18 @@ class Settings(BaseModel):
     telegram: bool = True
     discord: bool = True
     claimed_day: int = 0
+    language: str = i18n.DEFAULT_LANG  # 표시 언어 (ko/en/jp)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     telegram_mention_id: str = ""
     discord_webhook_url: str = ""
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _coerce_language(cls, value) -> str:
+        """미지원 값은 ko로 흡수. raise하면 ValidationError가 설정 전체를 기본값으로
+        되돌려 저장된 시크릿까지 날아가므로 절대 예외를 내지 않는다."""
+        return i18n.resolve_lang(value)
 
 
 def effective_settings(data: dict) -> dict:

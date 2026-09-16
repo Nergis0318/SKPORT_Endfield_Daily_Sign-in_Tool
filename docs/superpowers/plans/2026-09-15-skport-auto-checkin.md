@@ -24,12 +24,14 @@
 ### Task 1: 프로젝트 스켈레톤 + 순수 함수 + 단위 테스트
 
 **Files:**
+
 - Create: `pyproject.toml`
 - Create: `checkin.py`
 - Create: `tests/test_status.py`
 - Create: `tests/test_notify.py`
 
 **Interfaces:**
+
 - Consumes: 없음 (첫 태스크)
 - Produces (Task 2가 사용): `checkin.SIGNIN_URL: str`, `checkin.STATE_FILE: str`, `checkin.TIMEOUT_MS: int = 30000`, `checkin.BUTTON_PATTERN: re.Pattern`, `checkin.classify_status(page_text: str) -> str` (`"already" | "success" | "login_required" | "unknown"`), `checkin.send_telegram(bot_token: str, chat_id: str, text: str) -> bool`, `checkin.notify_enabled() -> bool`, `checkin.notify(text: str) -> None`, `checkin.MESSAGES: dict[str, str]`
 
@@ -140,6 +142,7 @@ Usage:
   python checkin.py            # headless, uses storage_state.json
   python checkin.py --headed   # visible browser for debugging
 """
+
 import os
 import re
 import sys
@@ -192,9 +195,21 @@ def notify(text):
 def classify_status(page_text):
     """Text-based result classifier. Order matters: already > success > login."""
     t = page_text.lower()
-    if any(k in t for k in ("이미 출석", "이미 완료", "already checked in", "already completed")):
+    if any(
+        k in t
+        for k in ("이미 출석", "이미 완료", "already checked in", "already completed")
+    ):
         return "already"
-    if any(k in t for k in ("출석 완료", "출석 성공", "check-in complete", "checked in", "签到成功")):
+    if any(
+        k in t
+        for k in (
+            "출석 완료",
+            "출석 성공",
+            "check-in complete",
+            "checked in",
+            "签到成功",
+        )
+    ):
         return "success"
     if any(k in t for k in ("로그인", "login", "sign in")):
         return "login_required"
@@ -218,10 +233,12 @@ git commit -m "feat: add checkin pure functions with unit tests"
 ### Task 2: 브라우저 출석 플로우 (`run_checkin` + `main`)
 
 **Files:**
+
 - Modify: `checkin.py` (아래 함수 추가 — Task 1 코드는 그대로 유지)
 - Test: 수동 실행 (브라우저 필요라 pytest 불가 — `--headed` 눈검증 + 로그인 전 상태에서 `login_required` 반환 확인)
 
 **Interfaces:**
+
 - Consumes (Task 1): `SIGNIN_URL`, `STATE_FILE`, `TIMEOUT_MS`, `BUTTON_PATTERN`, `classify_status`, `notify`, `MESSAGES`
 - Produces (Task 3, 4가 사용): `checkin.run_checkin(headed: bool = False) -> str`, `checkin.main(argv: list[str]) -> int` (exit 0 = success/already, 1 = 그 외)
 
@@ -313,10 +330,12 @@ git commit -m "feat: add playwright checkin flow with retry and debug dumps"
 ### Task 3: 최초 로그인 부트스트랩 (`login.py`) + 실제 출석 검증
 
 **Files:**
+
 - Create: `login.py`
 - Test: 실제 수동 로그인 1회 + headless 출석 실행 (사용자 개입 1회 필요)
 
 **Interfaces:**
+
 - Consumes (Task 2): `checkin.SIGNIN_URL`, `checkin.STATE_FILE`, `checkin.TIMEOUT_MS`, `checkin.run_checkin`
 - Produces (Task 4가 사용): `storage_state.json` (git 제외, Docker 볼륨 마운트용), `login.py`
 
@@ -325,6 +344,7 @@ git commit -m "feat: add playwright checkin flow with retry and debug dumps"
 ```python
 # login.py
 """One-time manual login: saves storage_state.json for checkin.py."""
+
 import checkin
 from playwright.sync_api import sync_playwright
 
@@ -333,7 +353,9 @@ with sync_playwright() as pw:
     ctx = browser.new_context()
     page = ctx.new_page()
     page.goto(checkin.SIGNIN_URL, timeout=checkin.TIMEOUT_MS)
-    print("브라우저에서 로그인을 완료한 뒤, 이 터미널에서 Enter를 누르세요.", flush=True)
+    print(
+        "브라우저에서 로그인을 완료한 뒤, 이 터미널에서 Enter를 누르세요.", flush=True
+    )
     input()
     ctx.storage_state(path=checkin.STATE_FILE)
     print(f"saved: {checkin.STATE_FILE}", flush=True)
@@ -362,12 +384,14 @@ git commit -m "feat: add one-time manual login bootstrap"
 ### Task 4: Docker + cron + compose + 텔레그램 종단 검증
 
 **Files:**
+
 - Create: `Dockerfile`
 - Create: `crontab`
 - Create: `docker-compose.yml`
 - Create: `.env.example`
 
 **Interfaces:**
+
 - Consumes (Task 3): `checkin.py`, `login.py`, `storage_state.json` (호스트에 존재), `.env` (사용자가 `.env.example` 복사 후 작성)
 - Produces: 매일 09:30 KST 자동 실행 컨테이너
 
@@ -440,6 +464,6 @@ git commit -m "feat: add docker cron scheduler with compose"
 
 ## Self-review
 
-- Spec coverage: 구조(checkin/login/Dockerfile/compose/.env.example) → Task 1~4. 데이터 흐름(세션→접속→클릭→판정→텔레그램) → Task 2. 에러(30초 타임아웃·1회 재시도·스크린샷·로그인만료 알림) → Task 2. 스케줄(09:30 KST·stdout) → Task 4. 테스트(수동 1회·--headed) → Task 2~3. 전 섹션 매핑됨.
+- Spec coverage: 구조(checkin/login/Dockerfile/compose/.env.example) → Task 1~~4. 데이터 흐름(세션→접속→클릭→판정→텔레그램) → Task 2. 에러(30초 타임아웃·1회 재시도·스크린샷·로그인만료 알림) → Task 2. 스케줄(09:30 KST·stdout) → Task 4. 테스트(수동 1회·--headed) → Task 2~~3. 전 섹션 매핑됨.
 - Placeholder scan: URL·시간·파일명·커맨드·assert 전부 구체값. "적절히 처리" 같은 문구 없음.
 - Type consistency: `classify_status(str)->str` 5값이 `MESSAGES` 키 5개와 일치. `run_checkin(bool)->str`, `main(list[str])->int`, `send_telegram(str,str,str)->bool` 전 태스크 동일.

@@ -2,13 +2,13 @@ import json
 
 from fastapi.testclient import TestClient
 
-import app.main as main
-from app import scheduler, state
+from app import main, scheduler, state
 
 _DEFAULTS = {
     "telegram": True,
     "discord": True,
     "claimed_day": 0,
+    "language": "ko",
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "telegram_mention_id": "",
@@ -19,9 +19,16 @@ _DEFAULTS = {
 def _client(tmp_path, monkeypatch):
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SKPORT_DISABLE_BOOT", "1")
-    for key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_MENTION_ID", "DISCORD_WEBHOOK_URL"):
+    for key in (
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_CHAT_ID",
+        "TELEGRAM_MENTION_ID",
+        "DISCORD_WEBHOOK_URL",
+    ):
         monkeypatch.delenv(key, raising=False)
-    state.state.update({"last_status": "-", "last_run": "-", "next_run": "-", "log": []})
+    state.state.update(
+        {"last_status": "-", "last_run": "-", "next_run": "-", "log": []}
+    )
     state.state["settings"] = dict(_DEFAULTS)
     return TestClient(main.app)
 
@@ -45,17 +52,23 @@ def test_status_shape(tmp_path, monkeypatch):
         r = c.get("/api/status")
         assert r.status_code == 200
         data = r.json()
-        assert data["settings"] == {**_DEFAULTS, "telegram_configured": False, "discord_configured": False}
+        assert data["settings"] == {
+            **_DEFAULTS,
+            "telegram_configured": False,
+            "discord_configured": False,
+        }
         assert data["last_status"] == "-"
         assert data["has_session"] in (True, False)
 
 
 def test_status_masks_secrets(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
-        state.state["settings"].update({
-            "telegram_bot_token": "SECRETTOKEN",
-            "discord_webhook_url": "https://secret/hook",
-        })
+        state.state["settings"].update(
+            {
+                "telegram_bot_token": "SECRETTOKEN",
+                "discord_webhook_url": "https://secret/hook",
+            }
+        )
         s = c.get("/api/status").json()["settings"]
         assert s["telegram_bot_token"] == ""
         assert s["discord_webhook_url"] == ""
@@ -75,8 +88,11 @@ def test_settings_json_roundtrip(tmp_path, monkeypatch):
 
 def test_settings_form_compat(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
-        r = c.post("/api/settings", content="telegram=on",
-                   headers={"Content-Type": "application/x-www-form-urlencoded"})
+        r = c.post(
+            "/api/settings",
+            content="telegram=on",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         assert r.status_code == 200
         assert r.json()["settings"]["telegram"] is True
 
@@ -97,14 +113,17 @@ def test_settings_json_non_object_body_keeps_telegram(tmp_path, monkeypatch):
 
 def test_settings_saves_notification_fields(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
-        r = c.post("/api/settings", json={
-            "telegram": True,
-            "discord": True,
-            "telegram_bot_token": "TOK",
-            "telegram_chat_id": "CHAT",
-            "telegram_mention_id": "USER1",
-            "discord_webhook_url": "https://d/hook",
-        })
+        r = c.post(
+            "/api/settings",
+            json={
+                "telegram": True,
+                "discord": True,
+                "telegram_bot_token": "TOK",
+                "telegram_chat_id": "CHAT",
+                "telegram_mention_id": "USER1",
+                "discord_webhook_url": "https://d/hook",
+            },
+        )
         assert r.status_code == 200
         saved = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
         assert saved["telegram_bot_token"] == "TOK"
@@ -131,7 +150,10 @@ def test_settings_blank_clears_to_env_fallback(tmp_path, monkeypatch):
 
 def test_settings_omitted_fields_keep_values(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
-        c.post("/api/settings", json={"telegram_bot_token": "KEEP", "telegram_chat_id": "C1"})
+        c.post(
+            "/api/settings",
+            json={"telegram_bot_token": "KEEP", "telegram_chat_id": "C1"},
+        )
         c.post("/api/settings", json={"telegram": False})
         assert state.state["settings"]["telegram_bot_token"] == "KEEP"
         assert state.state["settings"]["telegram_chat_id"] == "C1"
@@ -139,8 +161,12 @@ def test_settings_omitted_fields_keep_values(tmp_path, monkeypatch):
 
 def test_cycle_and_login_queue(tmp_path, monkeypatch):
     calls = []
-    monkeypatch.setattr(scheduler, "request_cycle", lambda: calls.append("cycle") or True)
-    monkeypatch.setattr(scheduler, "request_login", lambda *a: calls.append("login") or True)
+    monkeypatch.setattr(
+        scheduler, "request_cycle", lambda: calls.append("cycle") or True
+    )
+    monkeypatch.setattr(
+        scheduler, "request_login", lambda *a: calls.append("login") or True
+    )
     with _client(tmp_path, monkeypatch) as c:
         assert c.post("/api/cycle").status_code == 202
         assert c.post("/api/login").status_code == 202
@@ -177,3 +203,50 @@ def test_close_browser_requests_immediate_close(tmp_path, monkeypatch):
 def test_preview_503(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
         assert c.get("/preview.png").status_code == 503
+
+
+def test_index_has_language_picker(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        html = c.get("/").text
+        assert 'id="lang"' in html
+        for code in ("ko", "en", "jp"):
+            assert f'value="{code}"' in html
+
+
+def test_language_switch_localizes_page(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        assert "SKPORT 에이전트" in c.get("/").text
+        assert (
+            c.post("/api/settings", json={"language": "en"}).json()["settings"][
+                "language"
+            ]
+            == "en"
+        )
+        assert "SKPORT Agent" in c.get("/").text
+        assert (
+            c.post("/api/settings", json={"language": "jp"}).json()["settings"][
+                "language"
+            ]
+            == "jp"
+        )
+        jp = c.get("/").text
+        assert "SKPORT エージェント" in jp
+        assert '<html lang="ja">' in jp  # jp는 표시용 코드, HTML lang은 ja
+
+
+def test_language_unknown_value_stays_ko(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        r = c.post("/api/settings", json={"language": "de"})
+        assert r.status_code == 200
+        assert r.json()["settings"]["language"] == "ko"
+        assert "SKPORT 에이전트" in c.get("/").text
+
+
+def test_language_switch_keeps_secrets(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        c.post("/api/settings", json={"telegram_bot_token": "TOK"})
+        c.post("/api/settings", json={"language": "en"})
+        assert state.state["settings"]["telegram_bot_token"] == "TOK"
+        saved = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert saved["telegram_bot_token"] == "TOK"
+        assert saved["language"] == "en"

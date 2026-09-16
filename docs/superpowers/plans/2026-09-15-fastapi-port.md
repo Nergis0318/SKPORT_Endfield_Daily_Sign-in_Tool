@@ -42,11 +42,13 @@
 ### Task 1: 의존성 + 패키지 스켈레톤
 
 **Files:**
+
 - Modify: `pyproject.toml`
 - Create: `app/__init__.py` (0바이트)
 - Test: import 스모크 (신규 테스트 파일 없음)
 
 **Interfaces:**
+
 - Consumes: 없음.
 - Produces: 설치된 7개 패키지. 후속 Task가 `import app.x` 가능.
 
@@ -82,10 +84,12 @@ git commit -m "chore: add fastapi stack deps and app package skeleton"
 ### Task 2: `app/state.py` 공유 상태
 
 **Files:**
+
 - Create: `app/state.py`
 - Test: `tests/test_state.py`
 
 **Interfaces:**
+
 - Consumes: 없음.
 - Produces: `state: dict`, `login_open: threading.Event`, `now() -> str`, `add_log(msg: str) -> None`, `get_data_dir() -> str`, `get_settings_file() -> str`, 상수 `NOVNC_DIR`, `VNC_HOST`, `VNC_PORT`, `LOGIN_WINDOW_MINUTES`, `UTC8`.
 
@@ -124,6 +128,7 @@ Expected: FAIL with "No module named 'app.state'".
 
 ```python
 """FastAPI 앱 공유 상태. manager.py:22-71에서 HTTP/WS 제외하고 이식."""
+
 import datetime
 import os
 import threading
@@ -179,10 +184,12 @@ git commit -m "feat: add app shared state"
 ### Task 3: `app/settings.py` Pydantic 검증 + 파일 persistence
 
 **Files:**
+
 - Create: `app/settings.py`
 - Test: `tests/test_settings.py`
 
 **Interfaces:**
+
 - Consumes: `app.state` (Task 2).
 - Produces: `Settings(BaseModel)` 필드 `telegram: bool = True`, `claimed_day: int = 0` (`extra="ignore"` — `refresh_minutes` 등 무시). `load_settings() -> None` (검증 후 dict로 state에 저장). `save_settings(s: Settings) -> None`.
 
@@ -203,7 +210,10 @@ def _write(path, obj):
 
 def test_load_ignores_unknown_keys(tmp_path, monkeypatch):
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
-    _write(str(tmp_path / "settings.json"), {"telegram": True, "claimed_day": 15, "refresh_minutes": 60})
+    _write(
+        str(tmp_path / "settings.json"),
+        {"telegram": True, "claimed_day": 15, "refresh_minutes": 60},
+    )
     settings.load_settings()
     assert state.state["settings"] == {"telegram": True, "claimed_day": 15}
 
@@ -224,7 +234,10 @@ def test_load_broken_file_uses_defaults(tmp_path, monkeypatch):
 
 def test_load_validation_error_falls_back(tmp_path, monkeypatch):
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
-    _write(str(tmp_path / "settings.json"), {"telegram": "yes-please", "claimed_day": "many"})
+    _write(
+        str(tmp_path / "settings.json"),
+        {"telegram": "yes-please", "claimed_day": "many"},
+    )
     settings.load_settings()
     assert state.state["settings"] == {"telegram": True, "claimed_day": 0}
 
@@ -245,6 +258,7 @@ Expected: FAIL with "No module named 'app.settings'".
 
 ```python
 """설정 모델 + settings.json persistence. manager.py:74-84의 검증 강화판."""
+
 import json
 import os
 
@@ -273,7 +287,10 @@ def load_settings() -> None:
     except ValidationError:
         print("[warn] settings invalid, using defaults", flush=True)
         validated = Settings()
-    state.state["settings"] = {"telegram": validated.telegram, "claimed_day": validated.claimed_day}
+    state.state["settings"] = {
+        "telegram": validated.telegram,
+        "claimed_day": validated.claimed_day,
+    }
 
 
 def save_settings(s: Settings) -> None:
@@ -299,10 +316,12 @@ git commit -m "feat: add pydantic settings with file persistence"
 ### Task 4: `app/notify.py` httpx 텔레그램
 
 **Files:**
+
 - Create: `app/notify.py`
 - Test: `tests/test_notify_httpx.py` (기존 `tests/test_notify.py`는 checkin용으로 유지)
 
 **Interfaces:**
+
 - Consumes: `app.state` (Task 2).
 - Produces: `async send_telegram(bot_token: str, chat_id: str, text: str, client=None) -> bool`, `async notify(text: str) -> None`, `notify_sync(text: str) -> None` (Executor 스레드용 동기 래퍼).
 
@@ -327,7 +346,9 @@ def test_send_telegram_posts():
         seen["body"] = request.read().decode()
         return httpx.Response(200)
 
-    ok = asyncio.run(notify.send_telegram("TOKEN", "123", "hi", client=_client(handler)))
+    ok = asyncio.run(
+        notify.send_telegram("TOKEN", "123", "hi", client=_client(handler))
+    )
     assert ok is True
     assert seen["url"] == "https://api.telegram.org/botTOKEN/sendMessage"
     assert "chat_id=123" in seen["body"] and "text=hi" in seen["body"]
@@ -337,14 +358,20 @@ def test_send_telegram_false_on_http_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
 
-    assert asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler))) is False
+    assert (
+        asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler)))
+        is False
+    )
 
 
 def test_send_telegram_false_on_network_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("down")
 
-    assert asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler))) is False
+    assert (
+        asyncio.run(notify.send_telegram("T", "1", "x", client=_client(handler)))
+        is False
+    )
 
 
 def test_send_telegram_missing_creds():
@@ -370,6 +397,7 @@ def test_notify_gated_by_settings(monkeypatch):
 
 ```python
 """httpx 기반 텔레그램 알림. checkin.send_telegram 계약 유지(무자격 스킵, 무예외)."""
+
 import asyncio
 import os
 
@@ -400,7 +428,11 @@ async def send_telegram(bot_token: str, chat_id: str, text: str, client=None) ->
 
 async def notify(text: str) -> None:
     if state.state["settings"]["telegram"]:
-        await send_telegram(os.environ.get("TELEGRAM_BOT_TOKEN", ""), os.environ.get("TELEGRAM_CHAT_ID", ""), text)
+        await send_telegram(
+            os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+            os.environ.get("TELEGRAM_CHAT_ID", ""),
+            text,
+        )
 
 
 def notify_sync(text: str) -> None:
@@ -423,10 +455,12 @@ git commit -m "feat: add httpx telegram notify"
 ### Task 5: `app/runner.py` 출석 실행 이식
 
 **Files:**
+
 - Create: `app/runner.py`
 - Test: `tests/test_schedule.py` (스케줄 시각 + `do_cycle` dedup; 브라우저는 모킹)
 
 **Interfaces:**
+
 - Consumes: `app.state`, `app.settings.Settings`/`save_settings`, `app.notify.notify_sync`, `checkin` (무수정 import).
 - Produces: `check_hour_minute() -> tuple[int, int]`, `next_check_delay(now=None) -> tuple[float, datetime]`, `executor: ThreadPoolExecutor(max_workers=1)`, `do_cycle(reason: str) -> None`, `do_login_window(reason: str, minutes: int) -> None`. `login_required` 시 후속 로그인창은 `executor.submit`으로 직렬 등록 (기존 daemon-Thread 대체).
 
@@ -442,7 +476,9 @@ from app import runner, state
 
 
 def _reset():
-    state.state.update({"last_status": "-", "last_run": "-", "next_run": "-", "log": []})
+    state.state.update(
+        {"last_status": "-", "last_run": "-", "next_run": "-", "log": []}
+    )
     state.state["settings"] = {"telegram": True, "claimed_day": 0}
     state.login_open.clear()
 
@@ -484,7 +520,9 @@ def test_do_cycle_duplicate_already_no_notify(monkeypatch, tmp_path):
     _reset()
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
     state.state["settings"] = {"telegram": True, "claimed_day": 15}
-    state.state["last_status"] = "already"  # 진짜 중복: 이전 상태도 already여야 조용함 (manager.py elif status != prev 규칙 유지)
+    state.state["last_status"] = (
+        "already"  # 진짜 중복: 이전 상태도 already여야 조용함 (manager.py elif status != prev 규칙 유지)
+    )
     monkeypatch.setattr(runner, "_run_once", lambda: ("already", 15))
     sent = []
     monkeypatch.setattr("app.runner.notify_sync", lambda t: sent.append(t))
@@ -508,7 +546,9 @@ def test_do_cycle_login_required_queues_login_window(monkeypatch, tmp_path):
     monkeypatch.setattr(runner, "_run_once", lambda: ("login_required", 15))
     monkeypatch.setattr("app.runner.notify_sync", lambda t: None)
     queued = []
-    monkeypatch.setattr(runner.executor, "submit", lambda fn, *a: queued.append((fn.__name__, a)))
+    monkeypatch.setattr(
+        runner.executor, "submit", lambda fn, *a: queued.append((fn.__name__, a))
+    )
     runner.do_cycle("테스트")
     assert queued == [("do_login_window", ("세션 만료",))]
 ```
@@ -521,6 +561,7 @@ Expected: FAIL with "No module named 'app.runner'".
 - [ ] **Step 3: Write minimal implementation**
 
 manager.py:45-61을 그대로 옮기고, 92-173을 아래 규칙으로 이식한다 (나머지 줄은 바이트 동일):
+
 - `from app import state` 사용, `state`/`login_open`/`now`/`add_log` 참조에 `state.` 접두.
 - `notify(` → `notify_sync(` (import: `from app.notify import notify_sync`).
 - `save_settings()` → `save_settings(Settings(**state.state["settings"]))`.
@@ -530,6 +571,7 @@ manager.py:45-61을 그대로 옮기고, 92-173을 아래 규칙으로 이식한
 ```python
 """출석 실행기. manager.py:45-61,92-173 이식. sync Playwright는 이 모듈에서만,
 반드시 executor(단일 워커) 경유로 호출된다."""
+
 import datetime
 import os
 import time
@@ -569,7 +611,11 @@ def _run_once():
     with sync_playwright() as pw:
         browser = checkin.launch_browser(pw, headed=True)
         try:
-            ctx_kwargs = {"storage_state": checkin.STATE_FILE} if os.path.isfile(checkin.STATE_FILE) else {}
+            ctx_kwargs = (
+                {"storage_state": checkin.STATE_FILE}
+                if os.path.isfile(checkin.STATE_FILE)
+                else {}
+            )
             ctx = browser.new_context(**ctx_kwargs)
             page = ctx.new_page()
             page.goto(checkin.SIGNIN_URL, timeout=checkin.TIMEOUT_MS)
@@ -593,7 +639,9 @@ def do_cycle(reason):
         prev = state.state["last_status"]
         state.state["last_status"] = status
         state.state["last_run"] = f"{state.now()} ({reason})"
-        if status == "success" or (status == "already" and state.state["settings"].get("claimed_day") != day):
+        if status == "success" or (
+            status == "already" and state.state["settings"].get("claimed_day") != day
+        ):
             state.state["settings"]["claimed_day"] = day
             save_settings(Settings(**state.state["settings"]))
             msg = f"{checkin.MESSAGES['success']} [{reason}]"
@@ -604,7 +652,9 @@ def do_cycle(reason):
             state.add_log(msg)
             notify_sync(msg)
         if status == "login_required":
-            state.add_log("관리 UI의 '로그인용 브라우저 열기' 버튼 또는 VNC로 로그인하세요.")
+            state.add_log(
+                "관리 UI의 '로그인용 브라우저 열기' 버튼 또는 VNC로 로그인하세요."
+            )
             executor.submit(do_login_window, "세션 만료")
     except Exception as e:
         state.add_log(f"실행 오류: {type(e).__name__}: {e}")
@@ -624,12 +674,22 @@ def do_login_window(reason, minutes=state.LOGIN_WINDOW_MINUTES):
     try:
         from playwright.sync_api import sync_playwright
 
-        state.add_log(f"{reason}: {minutes}분간 로그인용 브라우저를 엽니다. 화면/VNC(/vnc.html)에서 로그인하세요.")
-        notify_sync("🔑 SKPORT 로그인 필요 — {minutes}분간 브라우저를 열어둡니다. 화면/VNC(/vnc.html)로 로그인하세요.".format(minutes=minutes))
+        state.add_log(
+            f"{reason}: {minutes}분간 로그인용 브라우저를 엽니다. 화면/VNC(/vnc.html)에서 로그인하세요."
+        )
+        notify_sync(
+            "🔑 SKPORT 로그인 필요 — {minutes}분간 브라우저를 열어둡니다. 화면/VNC(/vnc.html)로 로그인하세요.".format(
+                minutes=minutes
+            )
+        )
         with sync_playwright() as pw:
             browser = checkin.launch_browser(pw, headed=True)
             try:
-                ctx_kwargs = {"storage_state": checkin.STATE_FILE} if os.path.isfile(checkin.STATE_FILE) else {}
+                ctx_kwargs = (
+                    {"storage_state": checkin.STATE_FILE}
+                    if os.path.isfile(checkin.STATE_FILE)
+                    else {}
+                )
                 ctx = browser.new_context(**ctx_kwargs)
                 page = ctx.new_page()
                 page.goto(checkin.SIGNIN_URL, timeout=checkin.TIMEOUT_MS)
@@ -665,11 +725,13 @@ git commit -m "feat: port checkin cycle runner with serial executor"
 ### Task 6: `app/scheduler.py` APScheduler
 
 **Files:**
+
 - Create: `app/scheduler.py`
 - Modify: `tests/test_schedule.py` (스케줄러 등록 테스트 추가)
 - Test: `uv run pytest tests/test_schedule.py -v`
 
 **Interfaces:**
+
 - Consumes: `app.runner` (Task 5: `check_hour_minute`, `do_cycle`, `do_login_window`, `executor`), `app.state`, `checkin.STATE_FILE`.
 - Produces: `scheduler: AsyncIOScheduler(timezone="Asia/Shanghai")`, `start() -> None`, `shutdown() -> None`, `request_cycle() -> bool`, `request_login(minutes: int = 10) -> bool`. `SKPORT_DISABLE_BOOT=1`이면 부팅잡 생략 (테스트 심).
 
@@ -740,6 +802,7 @@ Expected: FAIL with "No module named 'app.scheduler'".
 
 ```python
 """APScheduler 스케줄러. manager.worker()의 부팅·정기 로직을 Cron+1회성 잡으로 이식."""
+
 import asyncio
 import datetime
 import os
@@ -768,19 +831,32 @@ async def _login_job(reason, minutes):
 def _refresh_next_run():
     job = scheduler.get_job("daily")
     if job is not None and job.next_run_time is not None:
-        state.state["next_run"] = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") + " (UTC+8)"
+        state.state["next_run"] = (
+            job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") + " (UTC+8)"
+        )
 
 
 def request_cycle() -> bool:
     """수동 출석 1회. 즉시 202 반환, 실행은 executor에서 직렬 처리."""
-    scheduler.add_job(_cycle_job, trigger="date", run_date=datetime.datetime.now(),
-                      id="once-cycle", replace_existing=True)
+    scheduler.add_job(
+        _cycle_job,
+        trigger="date",
+        run_date=datetime.datetime.now(),
+        id="once-cycle",
+        replace_existing=True,
+    )
     return True
 
 
 def request_login(minutes=state.LOGIN_WINDOW_MINUTES) -> bool:
-    scheduler.add_job(_login_job, trigger="date", run_date=datetime.datetime.now(),
-                      args=("수동 로그인", minutes), id="once-login", replace_existing=True)
+    scheduler.add_job(
+        _login_job,
+        trigger="date",
+        run_date=datetime.datetime.now(),
+        args=("수동 로그인", minutes),
+        id="once-login",
+        replace_existing=True,
+    )
     return True
 
 
@@ -789,19 +865,37 @@ def start_boot_jobs():
         return
     now = datetime.datetime.now()
     if not os.path.isfile(checkin.STATE_FILE):
-        scheduler.add_job(_login_job, trigger="date", run_date=now,
-                          args=("저장 세션 없음", state.LOGIN_WINDOW_MINUTES),
-                          id="boot-login", replace_existing=True)
-    elif state.state["settings"]["claimed_day"] != datetime.datetime.now(state.UTC8).day:
-        scheduler.add_job(_cycle_job, trigger="date", run_date=now,
-                          id="boot-cycle", replace_existing=True)
+        scheduler.add_job(
+            _login_job,
+            trigger="date",
+            run_date=now,
+            args=("저장 세션 없음", state.LOGIN_WINDOW_MINUTES),
+            id="boot-login",
+            replace_existing=True,
+        )
+    elif (
+        state.state["settings"]["claimed_day"] != datetime.datetime.now(state.UTC8).day
+    ):
+        scheduler.add_job(
+            _cycle_job,
+            trigger="date",
+            run_date=now,
+            id="boot-cycle",
+            replace_existing=True,
+        )
 
 
 def start() -> None:
     h, m = runner.check_hour_minute()
-    scheduler.add_job(_cycle_job, CronTrigger(hour=h, minute=m, timezone=TZ),
-                      id="daily", replace_existing=True,
-                      coalesce=True, misfire_grace_time=300, max_instances=1)
+    scheduler.add_job(
+        _cycle_job,
+        CronTrigger(hour=h, minute=m, timezone=TZ),
+        id="daily",
+        replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=300,
+        max_instances=1,
+    )
     start_boot_jobs()
     if not scheduler.running:
         scheduler.start()
@@ -828,10 +922,12 @@ git commit -m "feat: add apscheduler cron and manual triggers"
 ### Task 7: `app/vnc.py` WS→TCP 브리지
 
 **Files:**
+
 - Create: `app/vnc.py`
 - Test: `tests/test_vnc.py` (로컬 TCP 에코 서버로 binary 왕복 검증. 브라우저·VNC 불필요)
 
 **Interfaces:**
+
 - Consumes: `app.state` (`VNC_HOST`, `VNC_PORT`).
 - Produces: `async proxy(ws: WebSocket) -> None`. WS 프레임 처리(마스크 해제 등)는 Starlette가 담당하므로 raw binary만 TCP로 중계한다 — 기존 `relay_websockify` 수제 파싱과 동등. VNC 미접속이면 조용히 close.
 
@@ -905,6 +1001,7 @@ Expected: FAIL with "No module named 'app.vnc'".
 
 ```python
 """Starlette WebSocket ↔ TCP(VNC) 브리지. manager.relay_websockify의 Starlette판."""
+
 import asyncio
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -964,11 +1061,13 @@ git commit -m "feat: add websocket to vnc bridge"
 ### Task 8: `app/main.py` + 템플릿 + API 테스트
 
 **Files:**
+
 - Create: `app/main.py`
 - Create: `app/templates/index.html`
 - Test: `tests/test_api.py`
 
 **Interfaces:**
+
 - Consumes: 전부 (Tasks 2-7). `request.form()` 대신 body 수동 파싱 — `python-multipart` 의존성 추가 금지.
 - Produces: uvicorn 실행 대상 `app` (`uv run uvicorn app.main:app --host 0.0.0.0 --port 8080`). 엔드포인트: `GET /`, `GET /api/status`, `POST /api/settings`(JSON 우선·form 허용·JSON 응답), `POST /api/cycle`→202, `POST /api/login`→202, `GET /preview.png`→503, `WS /websockify`, noVNC StaticFiles(없으면 `/vnc.html` 503 안내).
 
@@ -986,7 +1085,9 @@ from app import scheduler, state
 def _client(tmp_path, monkeypatch):
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SKPORT_DISABLE_BOOT", "1")
-    state.state.update({"last_status": "-", "last_run": "-", "next_run": "-", "log": []})
+    state.state.update(
+        {"last_status": "-", "last_run": "-", "next_run": "-", "log": []}
+    )
     state.state["settings"] = {"telegram": True, "claimed_day": 0}
     return TestClient(main.app)
 
@@ -1019,16 +1120,23 @@ def test_settings_json_roundtrip(tmp_path, monkeypatch):
 
 def test_settings_form_compat(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
-        r = c.post("/api/settings", content="telegram=on",
-                   headers={"Content-Type": "application/x-www-form-urlencoded"})
+        r = c.post(
+            "/api/settings",
+            content="telegram=on",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         assert r.status_code == 200
         assert r.json()["settings"]["telegram"] is True
 
 
 def test_cycle_and_login_queue(tmp_path, monkeypatch):
     calls = []
-    monkeypatch.setattr(scheduler, "request_cycle", lambda: calls.append("cycle") or True)
-    monkeypatch.setattr(scheduler, "request_login", lambda *a: calls.append("login") or True)
+    monkeypatch.setattr(
+        scheduler, "request_cycle", lambda: calls.append("cycle") or True
+    )
+    monkeypatch.setattr(
+        scheduler, "request_login", lambda *a: calls.append("login") or True
+    )
     with _client(tmp_path, monkeypatch) as c:
         assert c.post("/api/cycle").status_code == 202
         assert c.post("/api/login").status_code == 202
@@ -1050,41 +1158,88 @@ Expected: FAIL with "No module named 'app.main'".
 `app/templates/index.html` (manager.py:191-218 이식, form → fetch JSON):
 
 ```html
-<!doctype html><html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SKPORT 에이전트</title>
-<style>body{font-family:sans-serif;max-width:900px;margin:20px auto;padding:0 12px}
-pre{background:#f4f4f4;padding:8px;white-space:pre-wrap}
-button{padding:6px 14px;margin:4px 4px 4px 0}</style></head><body>
-<h1>SKPORT 에이전트</h1>
-<p>매일 01:23 (UTC+8)에만 브라우저를 켜서 출석합니다. 평소에는 브라우저가 꺼져 있습니다.</p>
-<p><a href="/vnc.html">VNC로 브라우저 열기</a> (로그인용, Docker에서만 동작)</p>
-<h2>상태</h2>
-<ul><li>결과: <b id="st">-</b></li><li>마지막 실행: <span id="last">-</span></li>
-<li>다음 실행: <span id="next">-</span></li><li>저장 세션: <span id="sess">-</span></li></ul>
-<h2>설정</h2>
-<label><input type="checkbox" id="tg" checked> 텔레그램 알림</label>
-<button onclick="save()">저장</button>
-<button onclick="post('/api/cycle')">지금 출석 1회 실행</button>
-<button onclick="post('/api/login')">로그인용 브라우저 10분 열기</button>
-<h2>로그</h2><pre id="log"></pre>
-<script>
-async function post(u){await fetch(u,{method:'POST'});}
-async function save(){await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telegram:tg.checked})});}
-async function tick(){
- try{const r=await fetch('/api/status');const s=await r.json();
- st.textContent=s.last_status;last.textContent=s.last_run;next.textContent=s.next_run;
- tg.checked=s.settings.telegram;sess.textContent=s.has_session ? '있음' : '없음 (로그인 필요)';
- log.textContent=s.log.slice().reverse().join('\n');}catch(e){}
-}
-setInterval(tick,5000);tick();
-</script></body></html>
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SKPORT 에이전트</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 900px;
+        margin: 20px auto;
+        padding: 0 12px;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 8px;
+        white-space: pre-wrap;
+      }
+      button {
+        padding: 6px 14px;
+        margin: 4px 4px 4px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SKPORT 에이전트</h1>
+    <p>
+      매일 01:23 (UTC+8)에만 브라우저를 켜서 출석합니다. 평소에는 브라우저가
+      꺼져 있습니다.
+    </p>
+    <p>
+      <a href="/vnc.html">VNC로 브라우저 열기</a> (로그인용, Docker에서만 동작)
+    </p>
+    <h2>상태</h2>
+    <ul>
+      <li>결과: <b id="st">-</b></li>
+      <li>마지막 실행: <span id="last">-</span></li>
+      <li>다음 실행: <span id="next">-</span></li>
+      <li>저장 세션: <span id="sess">-</span></li>
+    </ul>
+    <h2>설정</h2>
+    <label><input type="checkbox" id="tg" checked /> 텔레그램 알림</label>
+    <button onclick="save()">저장</button>
+    <button onclick="post('/api/cycle')">지금 출석 1회 실행</button>
+    <button onclick="post('/api/login')">로그인용 브라우저 10분 열기</button>
+    <h2>로그</h2>
+    <pre id="log"></pre>
+    <script>
+      async function post(u) {
+        await fetch(u, { method: "POST" });
+      }
+      async function save() {
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ telegram: tg.checked }),
+        });
+      }
+      async function tick() {
+        try {
+          const r = await fetch("/api/status");
+          const s = await r.json();
+          st.textContent = s.last_status;
+          last.textContent = s.last_run;
+          next.textContent = s.next_run;
+          tg.checked = s.settings.telegram;
+          sess.textContent = s.has_session ? "있음" : "없음 (로그인 필요)";
+          log.textContent = s.log.slice().reverse().join("\n");
+        } catch (e) {}
+      }
+      setInterval(tick, 5000);
+      tick();
+    </script>
+  </body>
+</html>
 ```
 
 `app/main.py`:
 
 ```python
 """SKPORT 상시 에이전트(FastAPI). 실행: uv run uvicorn app.main:app --host 0.0.0.0 --port 8080."""
+
 import os
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -1123,7 +1278,9 @@ def index(request: Request):
 
 @app.get("/api/status")
 def api_status():
-    return JSONResponse({**state.state, "has_session": os.path.isfile(checkin.STATE_FILE)})
+    return JSONResponse(
+        {**state.state, "has_session": os.path.isfile(checkin.STATE_FILE)}
+    )
 
 
 @app.post("/api/settings")
@@ -1134,8 +1291,13 @@ async def api_settings(request: Request):
     else:  # 기존 form 호환 (python-multipart 없이 수동 파싱)
         raw = (await request.body()).decode()
         telegram = "telegram" in urllib.parse.parse_qs(raw)
-    updated = Settings(telegram=telegram, claimed_day=state.state["settings"]["claimed_day"])
-    state.state["settings"] = {"telegram": updated.telegram, "claimed_day": updated.claimed_day}
+    updated = Settings(
+        telegram=telegram, claimed_day=state.state["settings"]["claimed_day"]
+    )
+    state.state["settings"] = {
+        "telegram": updated.telegram,
+        "claimed_day": updated.claimed_day,
+    }
     save_settings(updated)
     state.add_log(f"설정 변경: {state.state['settings']}")
     return {"settings": state.state["settings"]}
@@ -1155,7 +1317,9 @@ def api_login():
 
 @app.get("/preview.png")
 def preview():
-    return PlainTextResponse("브라우저 꺼짐 (매일 01:23 UTC+8에만 켜짐)", status_code=503)
+    return PlainTextResponse(
+        "브라우저 꺼짐 (매일 01:23 UTC+8에만 켜짐)", status_code=503
+    )
 
 
 @app.websocket("/websockify")
@@ -1166,9 +1330,12 @@ async def websockify(ws: WebSocket):
 if os.path.isdir(state.NOVNC_DIR):
     app.mount("/", StaticFiles(directory=state.NOVNC_DIR, html=True), name="novnc")
 else:
+
     @app.get("/vnc.html")
     def vnc_missing():
-        return PlainTextResponse("VNC 비활성 (로컬 실행, Docker에서만 동작)", status_code=503)
+        return PlainTextResponse(
+            "VNC 비활성 (로컬 실행, Docker에서만 동작)", status_code=503
+        )
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1188,11 +1355,13 @@ git commit -m "feat: add fastapi app with lifecycle and routes"
 ### Task 9: 배포 전환 + `manager.py` 제거
 
 **Files:**
+
 - Modify: `Dockerfile`, `agent-entrypoint.sh`, `AGENTS.md` (Read 후 현재 문자열에 맞춰 수정)
 - Delete: `manager.py` (`git rm`, 스모크 통과 후)
 - Test: 전체 `uv run pytest` + uvicorn 스모크 (`curl /api/status`)
 
 **Interfaces:**
+
 - Consumes: Task 8까지의 `app/`.
 - Produces: Docker에서도 uvicorn 기동. `compose.yaml` 변경 없음 (포트 그대로).
 
@@ -1248,5 +1417,3 @@ git commit -m "chore: switch deployment to uvicorn and drop stdlib manager"
 1. **Spec coverage:** 아키텍처 분리(Tasks 1,2,5-8) ✓ / Settings 검증+호환(Task 3, `refresh_minutes` 무시 테스트 포함) ✓ / Cron 01:23 Asia/Shanghai+coalesce+misfire(Task 6, 트리거 문자열·시각 테스트) ✓ / 부팅잡(세션없음→로그인·미출석→즉시, DISABLE_BOOT 심) ✓ / Executor 직렬+login_open(Task 5 테스트 3건) ✓ / API 7종 매핑(Task 8 테스트 6건; `/websockify`는 Task 7 테스트 2건) ✓ / StaticFiles+로컬 폴백(Task 8 본문) ✓ / 에러 dedup(Task 5 본문, 기존 규칙 그대로) ✓ / httpx 계약(Task 4 테스트 5건) ✓ / 배포 7deps·Docker·entrypoint·AGENTS(Task 1, 9) ✓ / 리스크 3건(프레임 동등성→Task 7 본문 주석, 303→JSON→Task 8 템플릿 fetch, 타임존→Task 6 상수) ✓ / 비범위(checkin·login·novnc 불변→Global Constraints) ✓.
 2. **Placeholder scan:** "그대로 이식" 언급은 전부 정확한 원본 줄번호+치환 목록 병기. `TBD/TODO/적절히` 없음. Task 7 Step 4의 테스트 최소수정 허용 문구는 환경 의존(TestClient WS 구현) 탈출구로 1줄만 허용.
 3. **Type consistency:** `state["settings"]`는 전 Task에서 dict로 통일. `save_settings(Settings)` / `Settings(**dict)` 경계 변환은 Task 3·5·8에서 동일 시그니처. `notify_sync(text)` 시그니처 Task 4·5 일치. `request_cycle()/request_login()` Task 6·8 일치. `proxy(ws)` Task 7·8 일치.
-
-

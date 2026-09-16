@@ -14,6 +14,7 @@ _FULL_DEFAULTS = {
     "telegram": True,
     "discord": True,
     "claimed_day": 0,
+    "language": "ko",
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "telegram_mention_id": "",
@@ -35,7 +36,10 @@ def _clear_env(monkeypatch):
 def test_load_ignores_unknown_keys(tmp_path, monkeypatch):
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
     _clear_env(monkeypatch)
-    _write(str(tmp_path / "settings.json"), {"telegram": True, "claimed_day": 15, "refresh_minutes": 60})
+    _write(
+        str(tmp_path / "settings.json"),
+        {"telegram": True, "claimed_day": 15, "refresh_minutes": 60},
+    )
     settings.load_settings()
     assert state.state["settings"] == {**_FULL_DEFAULTS, "claimed_day": 15}
 
@@ -59,32 +63,61 @@ def test_load_broken_file_uses_defaults(tmp_path, monkeypatch):
 def test_load_validation_error_falls_back(tmp_path, monkeypatch):
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
     _clear_env(monkeypatch)
-    _write(str(tmp_path / "settings.json"), {"telegram": "yes-please", "claimed_day": "many"})
+    _write(
+        str(tmp_path / "settings.json"),
+        {"telegram": "yes-please", "claimed_day": "many"},
+    )
     settings.load_settings()
     assert state.state["settings"] == _FULL_DEFAULTS
 
 
 def test_save_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
-    settings.save_settings(settings.Settings(
-        telegram=False,
-        discord=False,
-        claimed_day=15,
-        telegram_bot_token="T",
-        telegram_chat_id="C",
-        telegram_mention_id="M",
-        discord_webhook_url="https://d",
-    ))
+    settings.save_settings(
+        settings.Settings(
+            telegram=False,
+            discord=False,
+            claimed_day=15,
+            telegram_bot_token="T",
+            telegram_chat_id="C",
+            telegram_mention_id="M",
+            discord_webhook_url="https://d",
+        )
+    )
     with open(tmp_path / "settings.json", encoding="utf-8") as f:
         assert json.load(f) == {
             "telegram": False,
             "discord": False,
             "claimed_day": 15,
+            "language": "ko",
             "telegram_bot_token": "T",
             "telegram_chat_id": "C",
             "telegram_mention_id": "M",
             "discord_webhook_url": "https://d",
         }
+
+
+def test_language_alias_is_absorbed_without_losing_secrets(tmp_path, monkeypatch):
+    """language 검증 실패로 전체 기본값 폴백(=시크릿 소실)이 일어나면 안 된다."""
+    monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
+    _clear_env(monkeypatch)
+    _write(
+        str(tmp_path / "settings.json"), {"language": "ja", "telegram_bot_token": "TOK"}
+    )
+    settings.load_settings()
+    assert state.state["settings"]["language"] == "jp"
+    assert state.state["settings"]["telegram_bot_token"] == "TOK"
+
+
+def test_language_unknown_value_falls_back_to_ko(tmp_path, monkeypatch):
+    monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
+    _clear_env(monkeypatch)
+    _write(
+        str(tmp_path / "settings.json"), {"language": "de", "telegram_bot_token": "TOK"}
+    )
+    settings.load_settings()
+    assert state.state["settings"]["language"] == "ko"
+    assert state.state["settings"]["telegram_bot_token"] == "TOK"
 
 
 def test_load_seeds_notification_env(tmp_path, monkeypatch):

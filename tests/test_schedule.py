@@ -7,7 +7,7 @@ import threading
 import pytest
 
 import checkin
-from app import runner, scheduler, state
+from app import runner, scheduler, settings, state
 
 
 class _Recorder:
@@ -24,7 +24,9 @@ class _Recorder:
 
 
 def _reset():
-    state.state.update({"last_status": "-", "last_run": "-", "next_run": "-", "log": []})
+    state.state.update(
+        {"last_status": "-", "last_run": "-", "next_run": "-", "log": []}
+    )
     state.state["settings"] = {"telegram": True, "claimed_day": 0}
     state.login_open.clear()
     state.close_requested.clear()
@@ -59,7 +61,9 @@ class _FakeBrowser:
 
 
 def _fake_playwright(monkeypatch, log):
-    monkeypatch.setattr("playwright.sync_api.sync_playwright", lambda: _FakeBrowser(log))
+    monkeypatch.setattr(
+        "playwright.sync_api.sync_playwright", lambda: _FakeBrowser(log)
+    )
     monkeypatch.setattr(checkin, "launch_browser", lambda pw: _FakeBrowser(log))
 
 
@@ -122,12 +126,34 @@ def test_do_cycle_duplicate_already_no_notify(monkeypatch, tmp_path):
     _reset()
     monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
     state.state["settings"] = {"telegram": True, "claimed_day": 15}
-    state.state["last_status"] = "already"  # 진짜 중복: 이전 상태도 already여야 조용함 (manager.py elif status != prev 규칙 유지)
+    state.state["last_status"] = (
+        "already"  # 진짜 중복: 이전 상태도 already여야 조용함 (manager.py elif status != prev 규칙 유지)
+    )
     monkeypatch.setattr(runner, "_run_once", lambda: ("already", 15))
     sent = []
     monkeypatch.setattr("app.runner.notify_sync", lambda t: sent.append(t))
     runner.do_cycle("테스트")
     assert sent == []
+
+
+def test_do_cycle_notify_follows_language(monkeypatch, tmp_path):
+    """알림 문구와 사유가 설정 언어를 따른다 (en이면 한국어가 남지 않아야 한다).
+
+    언어는 UI와 같은 경로(settings.json)로 저장한다 — claimed_day 저장이 state를
+    파일 기준으로 다시 만들기 때문에 메모리 값만 바꾸면 사라진다.
+    """
+    _reset()
+    monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
+    settings.save_settings(settings.Settings(language="en"))
+    settings.load_settings()
+    monkeypatch.setattr(runner, "_run_once", lambda: ("success", 15))
+    sent = []
+    monkeypatch.setattr("app.runner.notify_sync", lambda t: sent.append(t))
+    runner.do_cycle("수동 실행")
+    assert len(sent) == 1
+    assert "check-in complete" in sent[0]
+    assert "출석 완료" not in sent[0]
+    assert "[Manual run]" in sent[0]
 
 
 def test_do_cycle_skipped_while_login_open(monkeypatch):
@@ -146,7 +172,9 @@ def test_do_cycle_login_required_queues_login_window(monkeypatch, tmp_path):
     monkeypatch.setattr(runner, "_run_once", lambda: ("login_required", 15))
     monkeypatch.setattr("app.runner.notify_sync", lambda t: None)
     queued = []
-    monkeypatch.setattr(runner.executor, "submit", lambda fn, *a: queued.append((fn.__name__, a)))
+    monkeypatch.setattr(
+        runner.executor, "submit", lambda fn, *a: queued.append((fn.__name__, a))
+    )
     runner.do_cycle("테스트")
     assert queued == [("do_login_window", ("세션 만료",))]
 
@@ -253,7 +281,9 @@ def test_boot_login_run_date_is_tz_aware_now(monkeypatch, tmp_path):
             job = scheduler.scheduler.get_job("boot-login")
             assert job is not None
             nxt = job.next_run_time
-            assert nxt.utcoffset() == datetime.timedelta(hours=8)  # naive면 8h 오프셋이 아니거나 8h 벌어짐
+            assert nxt.utcoffset() == datetime.timedelta(
+                hours=8
+            )  # naive면 8h 오프셋이 아니거나 8h 벌어짐
             delta = abs((nxt - datetime.datetime.now(state.UTC8)).total_seconds())
             assert delta < 10
         finally:
@@ -288,7 +318,10 @@ def test_no_boot_jobs_when_claimed_today(monkeypatch, tmp_path):
     session.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(checkin, "STATE_FILE", str(session))
     monkeypatch.setattr(runner, "executor", _Recorder([]))
-    state.state["settings"] = {"telegram": True, "claimed_day": datetime.datetime.now(state.UTC8).day}
+    state.state["settings"] = {
+        "telegram": True,
+        "claimed_day": datetime.datetime.now(state.UTC8).day,
+    }
 
     async def go():
         scheduler.start()

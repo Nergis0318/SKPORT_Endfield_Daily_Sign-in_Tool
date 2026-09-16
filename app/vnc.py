@@ -1,4 +1,5 @@
 """Starlette WebSocket ↔ TCP(VNC) 브리지. manager.relay_websockify의 Starlette판."""
+
 import asyncio
 
 from fastapi import WebSocket, WebSocketDisconnect

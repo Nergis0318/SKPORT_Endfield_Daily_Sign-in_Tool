@@ -33,7 +33,7 @@ docker compose up --build       # 실행 (UI :8081, VNC /vnc.html)
 
 - **Docker 전용:** 호스트에서 에이전트를 직접 실행하는 경로 없음. `docker compose up --build`가 유일한 실행법. 테스트(`uv run pytest`)는 브라우저 없이 호스트에서 실행 가능.
 - **Playwright sync API는 생성 스레드 전용.** 다른 스레드에서 `page` 직접 호출 금지 — FastAPI에서는 `runner.executor` 경유만 허용, 이벤트루프 직접 호출 금지.
-- **출석 판정 로직 (UTC+8 기준):** `Day N` exact innerText 요소 탐색 → 부모의 `svg` 유무로 출석 여부. 클릭 후 4초 대기 → 미체크면 reload 후 재확인 (방문만으로 자동수령되는 경우 대비). 바꾸면 실출석에 영향 — `CARD_JS`/`CLICK_JS` 수정 시 신중히.
+- **출석 판정 로직:** `#lottie-container`(출석 버튼)의 **형제 요소 중 `#completed-overlay` 존재 여부**로 출석 완료 판정(`CARD_JS`). 미출석이면 `#lottie-container` 자체를 클릭(카드 부모 클릭은 동작 안 함) → 4초 대기 → 미출석이면 reload 후 재확인 (방문만으로 자동수령되는 경우 대비). UTC+8 day는 알림 중복 판정용으로만 반환. 바꾸면 실출석에 영향 — `CARD_JS`/`CLICK_JS` 수정 시 신중히.
 - **`classify_status` 순서 고정:** already → success → login. 순서 바꾸면 오분류 (예: "already checked in"이 "checked in"에 먼저 걸림).
 - **`app/runner.py` 알림 조건:** 당일 첫 출석·상태 변화·오류만 전송. 중복 `already`는 `claimed_day == day`면 알림 없음.
 - **로그인:** 세션 만료 시 runner가 10분 로그인 창을 자동으로 열고, UI 버튼/`POST /api/login`으로도 열 수 있음. VNC(`/vnc.html`)로 접속해 로그인.

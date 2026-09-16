@@ -7,4 +7,4 @@ Xvfb :99 -screen 0 1280x800x24 >/tmp/xvfb.log 2>&1 &
 sleep 1
 x11vnc -display :99 -forever -shared -nopw -localhost -quiet -bg >/tmp/x11vnc.log 2>&1 || true
 echo "관리 UI + VNC: http://localhost:8080 (VNC: /vnc.html)"
-exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8080
+exec uv run uvicorn --app-dir src app.main:app --host 0.0.0.0 --port 8080

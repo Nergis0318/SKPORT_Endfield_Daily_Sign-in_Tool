@@ -107,17 +107,17 @@ uv run pytest tests/test_status.py   # 단일 파일
 ## 구조
 
 ```
-checkin.py                # 출석 판정 핵심 (launch_browser, attempt_endfield, classify_status)
-app/main.py               # FastAPI 앱·라우트·lifespan
-app/scheduler.py          # APScheduler (01:23 UTC+8 Cron + 부팅/수동 잡)
-app/runner.py             # 단일 워커 Executor에서 Playwright 직렬 실행 + 알림 조건
-app/settings.py           # 설정 모델 + settings.json + env 폴백
-app/i18n.py               # 사용자 노출 문구 카탈로그 (ko/en/jp)
-app/notify.py             # httpx 텔레그램/디스코드 알림
-app/state.py              # 공유 상태·로그·데이터 경로
-app/vnc.py                # WebSocket → VNC TCP 프록시
-app/templates/index.html  # 관리 UI
-agent-entrypoint.sh       # Docker 진입점 (Xvfb :99 + x11vnc + uvicorn)
+src/checkin.py                # 출석 판정 핵심 (launch_browser, attempt_endfield, classify_status)
+src/app/main.py               # FastAPI 앱·라우트·lifespan
+src/app/scheduler.py          # APScheduler (01:23 UTC+8 Cron + 부팅/수동 잡)
+src/app/runner.py             # 단일 워커 Executor에서 Playwright 직렬 실행 + 알림 조건
+src/app/settings.py           # 설정 모델 + settings.json + env 폴백
+src/app/i18n.py               # 사용자 노출 문구 카탈로그 (ko/en/jp)
+src/app/notify.py             # httpx 텔레그램/디스코드 알림
+src/app/state.py              # 공유 상태·로그·데이터 경로
+src/app/vnc.py                # WebSocket → VNC TCP 프록시
+src/app/templates/index.html  # 관리 UI
+agent-entrypoint.sh           # Docker 진입점 (Xvfb :99 + x11vnc + uvicorn)
 ```
 
 `.env`, `./data`, `storage_state.json`은 gitignore 대상입니다.

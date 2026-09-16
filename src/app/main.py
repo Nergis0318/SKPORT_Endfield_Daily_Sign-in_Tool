@@ -3,6 +3,7 @@
 import os
 import urllib.parse
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -20,7 +21,7 @@ from app.settings import (
 )
 from app.vnc import proxy as vnc_proxy
 
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 # 필드별 타입: bool 플래그 vs 문자열(자격증명·표시 언어)
 BOOL_FIELDS = ("telegram", "discord")

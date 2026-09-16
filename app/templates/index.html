@@ -61,14 +61,7 @@
           {% for code in langs %}
           <option
             value="{{ code }}"
-            {%
-            if
-            code=""
-            ="lang"
-            %}
-            selected{%
-            endif
-            %}
+            {% if code == lang %}selected{% endif %}
           >
             {{ lang_labels[code] }}
           </option>

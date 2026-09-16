@@ -1,4 +1,5 @@
 import json
+import re
 
 from fastapi.testclient import TestClient
 
@@ -211,6 +212,10 @@ def test_index_has_language_picker(tmp_path, monkeypatch):
         assert 'id="lang"' in html
         for code in ("ko", "en", "jp"):
             assert f'value="{code}"' in html
+        # 현재 언어 옵션 하나만 selected (조건이 깨지면 Jinja 문법 오류로 500)
+        selected = re.findall(r"<option[^>]*\bselected\b[^>]*>", html)
+        assert len(selected) == 1
+        assert 'value="ko"' in selected[0]
 
 
 def test_language_switch_localizes_page(tmp_path, monkeypatch):

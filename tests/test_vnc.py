@@ -40,6 +40,24 @@ def test_proxy_echoes_binary(monkeypatch):
         server.close()
 
 
+def test_proxy_omits_subprotocol_when_not_requested(monkeypatch):
+    """WS 스펙(RFC 6455): 요청에 없는 Sec-WebSocket-Protocol을 응답하면 브라우저가 거부한다.
+
+    noVNC 1.6은 서브프로토콜을 아예 요청하지 않으므로, 요청이 없으면 헤더도 없어야 한다.
+    """
+    server = socket.create_server(("127.0.0.1", 0))
+    monkeypatch.setattr(state, "VNC_PORT", server.getsockname()[1])
+    threading.Thread(target=lambda: _echo(server.accept()[0]), daemon=True).start()
+    try:
+        with TestClient(_tiny_app()) as c:
+            with c.websocket_connect("/ws") as w:  # subprotocols 미지정
+                assert w.accepted_subprotocol is None
+                w.send_bytes(b"\x01\x02binary")
+                assert w.receive_bytes() == b"\x01\x02binary"
+    finally:
+        server.close()
+
+
 def test_proxy_closes_when_no_vnc(monkeypatch):
     monkeypatch.setattr(state, "VNC_PORT", 59999)  # 닫힌 포트
     with TestClient(_tiny_app()) as c:

@@ -7,7 +7,11 @@ from app import state
 
 
 async def proxy(ws: WebSocket) -> None:
-    await ws.accept(subprotocol="binary")
+    # RFC 6455: 클라이언트가 요청하지 않은 Sec-WebSocket-Protocol을 응답하면
+    # 브라우저가 핸드셰이크를 거부한다(1006). noVNC 1.6은 서브프로토콜을 요청하지
+    # 않으므로, 요청이 있을 때만 첫 번째 값을 그대로 되돌려준다.
+    offered = ws.headers.get("sec-websocket-protocol", "")
+    await ws.accept(subprotocol=offered.split(",")[0].strip() or None)
     try:
         reader, writer = await asyncio.open_connection(state.VNC_HOST, state.VNC_PORT)
     except OSError:

@@ -2,7 +2,6 @@
 반드시 executor(단일 워커) 경유로 호출된다."""
 import datetime
 import os
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 import checkin
@@ -85,12 +84,23 @@ def do_cycle(reason):
             notify_sync(f"{checkin.MESSAGES['error']} [{reason}]")
 
 
+def request_close() -> bool:
+    """열려 있는 로그인용 브라우저를 즉시 닫도록 요청. 이벤트 set만 하므로 논블로킹.
+    Playwright 객체는 executor 스레드 전용이라 바깥에서 close()를 부를 수 없다."""
+    if not state.login_open.is_set():
+        return False
+    state.close_requested.set()
+    return True
+
+
 def do_login_window(reason, minutes=state.LOGIN_WINDOW_MINUTES):
-    """로그인용 브라우저를 minutes분간 열어둔다. 저장 세션이 없을 때 강제 실행용."""
+    """로그인용 브라우저를 minutes분간 열어둔다. 저장 세션이 없을 때 강제 실행용.
+    request_close()가 오면 남은 시간을 기다리지 않고 즉시 닫는다."""
     if state.login_open.is_set():
         state.add_log("로그인 창이 이미 열려 있습니다.")
         return
-    state.login_open.set()
+    state.close_requested.clear()  # 이전 요청이 남아 있으면 즉시 닫히므로 먼저 비운다
+    state.login_open.set()  # 순서 고정: set 뒤에 들어온 요청만 유효 (clear가 요청을 삼키지 않도록)
     try:
         from playwright.sync_api import sync_playwright
 
@@ -104,7 +114,8 @@ def do_login_window(reason, minutes=state.LOGIN_WINDOW_MINUTES):
                 page = ctx.new_page()
                 page.goto(checkin.SIGNIN_URL, timeout=checkin.TIMEOUT_MS)
                 state.state["last_run"] = f"{state.now()} ({reason})"
-                time.sleep(minutes * 60)
+                if state.close_requested.wait(minutes * 60):
+                    state.add_log("즉시 종료 요청을 받아 로그인 창을 닫습니다.")
                 try:
                     ctx.storage_state(path=checkin.STATE_FILE)
                 except Exception as e:
@@ -115,4 +126,5 @@ def do_login_window(reason, minutes=state.LOGIN_WINDOW_MINUTES):
     except Exception as e:
         state.add_log(f"로그인 창 오류: {type(e).__name__}: {e}")
     finally:
+        state.close_requested.clear()
         state.login_open.clear()

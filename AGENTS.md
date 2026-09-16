@@ -37,4 +37,5 @@ docker compose up --build       # 실행 (UI :8081, VNC /vnc.html)
 - **`classify_status` 순서 고정:** already → success → login. 순서 바꾸면 오분류 (예: "already checked in"이 "checked in"에 먼저 걸림).
 - **`app/runner.py` 알림 조건:** 당일 첫 출석·상태 변화·오류만 전송. 중복 `already`는 `claimed_day == day`면 알림 없음.
 - **로그인:** 세션 만료 시 runner가 10분 로그인 창을 자동으로 열고, UI 버튼/`POST /api/login`으로도 열 수 있음. VNC(`/vnc.html`)로 접속해 로그인.
+- **로그인 창 즉시 종료:** UI '브라우저 즉시 종료' 버튼 → `POST /api/close` → `runner.request_close()`가 `state.close_requested`를 set하면, `do_login_window`의 대기(`close_requested.wait`)가 즉시 깨어나 세션을 저장하고 브라우저를 닫음. Playwright 객체는 스레드 전용이라 바깥에서 `browser.close()`를 직접 부를 수 없어 이벤트 기반 협조적 중단을 씀 — `time.sleep`으로 되돌리면 버튼이 무력화됨. `close_requested`는 창 시작/종료 시 clear.
 - **알림 설정:** 봇 토큰·채널 ID·멘션 유저 ID·디스코드 웹훅는 Web UI(`/`)에서 설정하며 `settings.json`에 저장됨(파일 값 우선, 없으면 env 폴백). 시크릿(토큰·웹훅)은 `/api/status` 응답에서 빈 값으로 마스킹되고 `telegram_configured`/`discord_configured` 플래그로만 노출. `POST /api/settings`에서 생략한 필드는 유지, 빈 문자열은 삭제 후 env 폴백.

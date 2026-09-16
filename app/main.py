@@ -63,7 +63,9 @@ def index(request: Request):
 
 @app.get("/api/status")
 def api_status():
-    return JSONResponse({**state.state, "settings": _public_settings(state.state["settings"]), "has_session": os.path.isfile(checkin.STATE_FILE)})
+    return JSONResponse({**state.state, "settings": _public_settings(state.state["settings"]),
+                         "has_session": os.path.isfile(checkin.STATE_FILE),
+                         "login_open": state.login_open.is_set()})
 
 
 def _parse_form(raw: str) -> dict:
@@ -119,6 +121,12 @@ def api_cycle():
 def api_login():
     scheduler.request_login()
     return {"queued": True}
+
+
+@app.post("/api/close")
+def api_close():
+    """열려 있는 로그인용 브라우저를 즉시 닫는다. 열려 있지 않으면 closing=false."""
+    return {"closing": runner.request_close()}
 
 
 @app.get("/preview.png")

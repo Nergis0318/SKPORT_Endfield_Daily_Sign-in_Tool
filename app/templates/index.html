@@ -30,6 +30,7 @@ label{display:block;margin:6px 0}input[type=text],input[type=password]{width:100
 </fieldset>
 <button onclick="post('/api/cycle')">지금 출석 1회 실행</button>
 <button onclick="post('/api/login')">로그인용 브라우저 10분 열기</button>
+<button id="closeBtn" onclick="post('/api/close')">브라우저 즉시 종료</button>
 <h2>로그</h2><pre id="log"></pre>
 <script>
 const $=id=>document.getElementById(id);
@@ -37,7 +38,7 @@ const _dirty={botToken:false,chatId:false,mentionId:false,discordUrl:false};
 ['botToken','chatId','mentionId','discordUrl'].forEach(id=>{
   $(id).addEventListener('input',()=>{_dirty[id]=true;});
 });
-async function post(u){await fetch(u,{method:'POST'});}
+async function post(u){await fetch(u,{method:'POST'});tick();}
 function payload(){
   const body={telegram:$('tg').checked,discord:$('dc').checked};
   // 문자열 필드는 항상 전송(변경/삭제 반영). 시크릿은 입력했을 때만 전송 → 저장값 유지.
@@ -69,6 +70,7 @@ async function tick(){
  if(!_dirty.chatId) chatId.value=s.settings.telegram_chat_id||'';
  if(!_dirty.mentionId) mentionId.value=s.settings.telegram_mention_id||'';
  sess.textContent=s.has_session ? '있음' : '없음 (로그인 필요)';
+ closeBtn.disabled=!s.login_open;  // 브라우저가 열려 있을 때만 종료 가능
  log.textContent=s.log.slice().reverse().join('\n');}catch(e){}
 }
 setInterval(tick,5000);tick();

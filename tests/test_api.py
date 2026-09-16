@@ -147,6 +147,33 @@ def test_cycle_and_login_queue(tmp_path, monkeypatch):
     assert calls == ["cycle", "login"]
 
 
+def test_status_exposes_login_open(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        assert c.get("/api/status").json()["login_open"] is False
+        state.login_open.set()
+        assert c.get("/api/status").json()["login_open"] is True
+
+
+def test_index_has_close_button(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        html = c.get("/").text
+        assert 'id="closeBtn"' in html
+        assert "/api/close" in html
+
+
+def test_close_browser_noop_without_open_window(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        assert c.post("/api/close").json() == {"closing": False}
+        assert not state.close_requested.is_set()
+
+
+def test_close_browser_requests_immediate_close(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as c:
+        state.login_open.set()
+        assert c.post("/api/close").json() == {"closing": True}
+        assert state.close_requested.is_set()
+
+
 def test_preview_503(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
         assert c.get("/preview.png").status_code == 503

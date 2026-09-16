@@ -25,6 +25,7 @@ state = {
     "log": [],
 }
 login_open = threading.Event()  # 로그인 창이 열려 있으면 출석 사이클은 건너뜀
+close_requested = threading.Event()  # 열린 로그인 창을 즉시 닫아달라는 요청
 
 
 def get_data_dir() -> str:

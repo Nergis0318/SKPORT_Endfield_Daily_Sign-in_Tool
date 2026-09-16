@@ -13,3 +13,4 @@ def _isolate_state():
     state.state.clear()
     state.state.update(saved)
     state.login_open.clear()
+    state.close_requested.clear()

@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import datetime
 import json
+import threading
 
 import pytest
 
@@ -26,6 +27,40 @@ def _reset():
     state.state.update({"last_status": "-", "last_run": "-", "next_run": "-", "log": []})
     state.state["settings"] = {"telegram": True, "claimed_day": 0}
     state.login_open.clear()
+    state.close_requested.clear()
+
+
+class _FakeBrowser:
+    """sync_playwright()/launch_browser() 대역. 브라우저 없이 대기 로직만 검증."""
+
+    def __init__(self, log):
+        self.log = log
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def new_context(self, **kwargs):
+        return self
+
+    def new_page(self):
+        return self
+
+    def goto(self, url, timeout=None):
+        self.log.append(("goto", url))
+
+    def storage_state(self, path=None):
+        self.log.append(("storage_state", path))
+
+    def close(self):
+        self.log.append(("close",))
+
+
+def _fake_playwright(monkeypatch, log):
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", lambda: _FakeBrowser(log))
+    monkeypatch.setattr(checkin, "launch_browser", lambda pw: _FakeBrowser(log))
 
 
 def test_next_check_before_target(monkeypatch):
@@ -114,6 +149,46 @@ def test_do_cycle_login_required_queues_login_window(monkeypatch, tmp_path):
     monkeypatch.setattr(runner.executor, "submit", lambda fn, *a: queued.append((fn.__name__, a)))
     runner.do_cycle("테스트")
     assert queued == [("do_login_window", ("세션 만료",))]
+
+
+def test_login_window_closes_immediately_on_request(monkeypatch, tmp_path):
+    """즉시 종료 요청이 오면 10분 대기 중이라도 브라우저를 닫고 세션을 저장해야 한다."""
+    _reset()
+    monkeypatch.setenv("SKPORT_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr("app.runner.notify_sync", lambda t: None)
+    log = []
+    _fake_playwright(monkeypatch, log)
+
+    def _click_close():  # API 스레드가 이벤트를 set하는 상황
+        state.login_open.wait(5)
+        state.close_requested.set()
+
+    threading.Thread(target=_click_close, daemon=True).start()
+    done = threading.Event()
+
+    def _run():
+        runner.do_login_window("테스트", minutes=10)
+        done.set()
+
+    threading.Thread(target=_run, daemon=True).start()
+    assert done.wait(5), "즉시 종료 요청 후에도 로그인 창이 닫히지 않음"
+    assert ("storage_state", checkin.STATE_FILE) in log  # 종료 직전 세션 저장은 유지
+    assert ("close",) in log
+    assert not state.login_open.is_set()
+    assert not state.close_requested.is_set()  # 다음 창을 위해 초기화
+
+
+def test_request_close_noop_without_open_window():
+    _reset()
+    assert runner.request_close() is False
+    assert not state.close_requested.is_set()
+
+
+def test_request_close_signals_open_window():
+    _reset()
+    state.login_open.set()
+    assert runner.request_close() is True
+    assert state.close_requested.is_set()
 
 
 def test_daily_cron_registers(monkeypatch):

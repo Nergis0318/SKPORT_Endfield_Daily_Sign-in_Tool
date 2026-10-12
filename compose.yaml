@@ -6,6 +6,7 @@ services:
     environment:
       SKPORT_STATE_FILE: /app/data/storage_state.json
       SKPORT_DATA_DIR: /app/data
+      TZ: Asia/Shanghai
     ports:
       - "8081:8080"
     volumes:

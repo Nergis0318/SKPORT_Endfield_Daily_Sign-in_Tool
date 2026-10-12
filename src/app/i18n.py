@@ -60,6 +60,7 @@ STRINGS = {
         "ui.open_login": "로그인용 브라우저 10분 열기",
         "ui.close_browser": "브라우저 즉시 종료",
         "ui.log": "로그",
+        "ui.theme_toggle": "테마 전환",
         # 상태 코드 라벨
         "status.success": "출석 완료",
         "status.already": "이미 출석됨",
@@ -128,6 +129,7 @@ STRINGS = {
         "ui.open_login": "Open login browser for 10 minutes",
         "ui.close_browser": "Close browser now",
         "ui.log": "Log",
+        "ui.theme_toggle": "Toggle theme",
         # Status code labels
         "status.success": "Checked in",
         "status.already": "Already checked in",
@@ -196,6 +198,7 @@ STRINGS = {
         "ui.open_login": "ログイン用ブラウザを10分間開く",
         "ui.close_browser": "ブラウザを即時終了",
         "ui.log": "ログ",
+        "ui.theme_toggle": "テーマ切替",
         # ステータスコードのラベル
         "status.success": "出席完了",
         "status.already": "出席済み",

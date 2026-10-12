@@ -4,55 +4,252 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>{{ t('ui.title') }}</title>
+    <script>
+      // 테마는 기기별 localStorage에 저장 (백엔드 저장 불필요). 페인트 전에 확정해 플래시 방지
+      document.documentElement.dataset.theme =
+        localStorage.getItem("skport-theme") ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    </script>
     <style>
-      body {
-        font-family: sans-serif;
-        max-width: 900px;
-        margin: 20px auto;
-        padding: 0 12px;
+      :root {
+        --bg: #eef1f6;
+        --card: #ffffff;
+        --fg: #1b2430;
+        --muted: #5c6b80;
+        --line: #dde3ec;
+        --accent: #2563eb;
+        --accent-fg: #ffffff;
+        --ok: #15803d;
+        --info: #1d4ed8;
+        --warn: #b45309;
+        --err: #b91c1c;
+        --neutral: #64748b;
+        --code-bg: #0e1524;
+        --code-fg: #cfe0f5;
       }
-      pre {
-        background: #f4f4f4;
-        padding: 8px;
-        white-space: pre-wrap;
+      [data-theme="dark"] {
+        --bg: #0e1420;
+        --card: #1a2331;
+        --fg: #e7eef8;
+        --muted: #94a5bb;
+        --line: #2b3849;
+        --accent: #4f8ef7;
+        --accent-fg: #0b1220;
+        --ok: #4ade80;
+        --info: #7aa7ff;
+        --warn: #fbbf24;
+        --err: #f87171;
+        --neutral: #94a3b8;
+        --code-bg: #0a101c;
+        --code-fg: #cfe0f5;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Noto Sans JP",
+          sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px 16px 40px;
+        transition: background 0.2s, color 0.2s;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 22px;
+      }
+      h2 {
+        font-size: 15px;
+        letter-spacing: 0.02em;
+        color: var(--muted);
+        margin: 22px 0 10px;
+      }
+      a {
+        color: var(--accent);
+      }
+      .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .intro {
+        margin: 4px 0;
+        color: var(--muted);
+      }
+      .icon-btn {
+        font-size: 18px;
+        line-height: 1;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--card);
+        color: var(--fg);
+        cursor: pointer;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 10px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .card .label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .card .value {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 13px;
+        background: rgba(100, 116, 139, 0.15);
+        color: var(--neutral);
+      }
+      .badge[data-status="success"] {
+        background: rgba(21, 128, 61, 0.15);
+        color: var(--ok);
+      }
+      .badge[data-status="already"] {
+        background: rgba(29, 78, 216, 0.15);
+        color: var(--info);
+      }
+      .badge[data-status="login_required"] {
+        background: rgba(180, 83, 9, 0.15);
+        color: var(--warn);
+      }
+      .badge[data-status="error"] {
+        background: rgba(185, 28, 28, 0.15);
+        color: var(--err);
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
       }
       button {
-        padding: 6px 14px;
-        margin: 4px 4px 4px 0;
+        font: inherit;
+        padding: 8px 16px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--card);
+        color: var(--fg);
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-fg);
+      }
+      button.danger {
+        color: var(--err);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
       }
       fieldset {
-        border: 1px solid #ccc;
-        border-radius: 6px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--card);
         margin: 10px 0;
-        padding: 10px 12px;
+        padding: 12px 16px;
+      }
+      legend {
+        font-size: 13px;
+        color: var(--muted);
+        padding: 0 6px;
       }
       label {
         display: block;
-        margin: 6px 0;
+        margin: 8px 0;
       }
       input[type="text"],
-      input[type="password"] {
+      input[type="password"],
+      select {
         width: 100%;
         max-width: 420px;
-        padding: 4px;
+        font: inherit;
+        color: var(--fg);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 8px;
       }
       .hint {
-        color: #666;
+        color: var(--muted);
         font-size: 12px;
+      }
+      pre {
+        background: var(--code-bg);
+        color: var(--code-fg);
+        padding: 12px;
+        border-radius: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12.5px;
+        max-height: 340px;
+        overflow: auto;
       }
     </style>
   </head>
   <body>
-    <h1>{{ t('ui.title') }}</h1>
-    <p>{{ t('ui.intro') }}</p>
-    <p><a href="/vnc.html">{{ t('ui.vnc_link') }}</a> {{ t('ui.vnc_hint') }}</p>
+    <header class="head">
+      <div>
+        <h1>{{ t('ui.title') }}</h1>
+        <p class="intro">{{ t('ui.intro') }}</p>
+        <p>
+          <a href="/vnc.html">{{ t('ui.vnc_link') }}</a>
+          <span class="hint">{{ t('ui.vnc_hint') }}</span>
+        </p>
+      </div>
+      <button
+        id="themeBtn"
+        class="icon-btn"
+        onclick="toggleTheme()"
+        aria-label="{{ t('ui.theme_toggle') }}"
+        title="{{ t('ui.theme_toggle') }}"
+      >
+        🌙
+      </button>
+    </header>
+
     <h2>{{ t('ui.status') }}</h2>
-    <ul>
-      <li>{{ t('ui.result') }}: <b id="st">-</b></li>
-      <li>{{ t('ui.last_run') }}: <span id="last">-</span></li>
-      <li>{{ t('ui.next_run') }}: <span id="next">-</span></li>
-      <li>{{ t('ui.session') }}: <span id="sess">-</span></li>
-    </ul>
+    <div class="grid">
+      <div class="card">
+        <span class="label">{{ t('ui.result') }}</span>
+        <b id="st" class="badge">-</b>
+      </div>
+      <div class="card">
+        <span class="label">{{ t('ui.last_run') }}</span>
+        <span class="value" id="last">-</span>
+      </div>
+      <div class="card">
+        <span class="label">{{ t('ui.next_run') }}</span>
+        <span class="value" id="next">-</span>
+      </div>
+      <div class="card">
+        <span class="label">{{ t('ui.session') }}</span>
+        <span class="value" id="sess">-</span>
+      </div>
+    </div>
+
     <h2>{{ t('ui.settings') }}</h2>
     <p>
       <label
@@ -106,8 +303,8 @@
           placeholder="{{ t('ui.keep_saved') }}" />
         <span class="hint" id="discordUrlState"></span
       ></label>
-      <div>
-        <button onclick="save()">{{ t('ui.save') }}</button>
+      <div class="actions">
+        <button class="primary" onclick="save()">{{ t('ui.save') }}</button>
         <button onclick="clearField('telegram_bot_token')">
           {{ t('ui.clear_token') }}
         </button>
@@ -116,11 +313,17 @@
         </button>
       </div>
     </fieldset>
-    <button onclick="post('/api/cycle')">{{ t('ui.run_now') }}</button>
-    <button onclick="post('/api/login')">{{ t('ui.open_login') }}</button>
-    <button id="closeBtn" onclick="post('/api/close')">
-      {{ t('ui.close_browser') }}
-    </button>
+
+    <div class="actions">
+      <button class="primary" onclick="post('/api/cycle')">
+        {{ t('ui.run_now') }}
+      </button>
+      <button onclick="post('/api/login')">{{ t('ui.open_login') }}</button>
+      <button id="closeBtn" class="danger" onclick="post('/api/close')">
+        {{ t('ui.close_browser') }}
+      </button>
+    </div>
+
     <h2>{{ t('ui.log') }}</h2>
     <pre id="log"></pre>
     <script>
@@ -129,6 +332,16 @@
       const STATUS_TEXT={{ status_text|tojson }};
       const TEXT={saved:{{ t('ui.saved')|tojson }},notSet:{{ t('ui.not_set')|tojson }},
         sessionYes:{{ t('ui.session_yes')|tojson }},sessionNo:{{ t('ui.session_no')|tojson }}};
+      function toggleTheme(){
+        const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
+        document.documentElement.dataset.theme=next;
+        localStorage.setItem('skport-theme',next);
+        paintThemeBtn();
+      }
+      function paintThemeBtn(){
+        themeBtn.textContent=document.documentElement.dataset.theme==='dark'?'☀️':'🌙';
+      }
+      paintThemeBtn();
       const _dirty={botToken:false,chatId:false,mentionId:false,discordUrl:false};
       ['botToken','chatId','mentionId','discordUrl'].forEach(id=>{
         $(id).addEventListener('input',()=>{_dirty[id]=true;});
@@ -163,7 +376,9 @@
       }
       async function tick(){
        try{const r=await fetch('/api/status');const s=await r.json();
-       st.textContent=STATUS_TEXT[s.last_status]||s.last_status;last.textContent=s.last_run;next.textContent=s.next_run;
+       st.textContent=STATUS_TEXT[s.last_status]||s.last_status||'-';
+       st.dataset.status=s.last_status||'';
+       last.textContent=s.last_run;next.textContent=s.next_run;
        tg.checked=s.settings.telegram;dc.checked=s.settings.discord;
        botTokenState.textContent=s.settings.telegram_configured?TEXT.saved:TEXT.notSet;
        discordUrlState.textContent=s.settings.discord_configured?TEXT.saved:TEXT.notSet;
